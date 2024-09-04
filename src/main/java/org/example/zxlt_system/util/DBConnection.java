@@ -9,7 +9,7 @@ public class DBConnection {
 
     public static Connection getConnection() {
         String driver = "com.mysql.cj.jdbc.Driver";  // 使用 MySQL 8.x 驱动类名
-        String url = "jdbc:mysql://localhost:3306/zxlt?useSSL=false&serverTimezone=Asia/Shanghai";  // 根据需要配置连接参数
+        String url = "jdbc:mysql://localhost:3306/zxlt?useUnicode=true&characterEncoding=utf8";
         String username = "root";
         String password = "2830446056jy";
 
