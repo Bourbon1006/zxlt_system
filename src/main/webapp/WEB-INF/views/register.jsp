@@ -10,19 +10,16 @@
   <h2>注册</h2>
   <form action="register" method="post">
     <div class="form-group">
-      <label for="username">用户名:</label>
-      <input type="text" id="username" name="username" required>
+      <input type="text" id="username" name="username"  placeholder="Username..." required>
     </div>
     <div class="form-group">
-      <label for="password">密码:</label>
-      <input type="password" id="password" name="password" required>
+      <input type="password" id="password" name="password" placeholder="Password..." required>
     </div>
     <div class="form-group">
-      <label for="email">邮箱:</label>
-      <input type="email" id="email" name="email" required>
+      <input type="email" id="email" name="email" placeholder="Email..." required>
     </div>
     <div class="form-group">
-      <input type="submit" value="注册">
+      <input type="submit" class="register-button" value="注册">
     </div>
   </form>
 </div>

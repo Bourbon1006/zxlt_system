@@ -1,58 +1,89 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    margin: 0;
+    background-color: #f6f5f7;
 }
+
 .container {
-    background: #fff;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    width: 300px;
-    text-align: center;
+    position: relative;
+    width: 400px;
+    height: 400px;
+    background-color: white;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
+
+.form {
+    width: 100%;
+    padding: 20px;
+}
+
 h2 {
     margin-bottom: 20px;
+    font-size: 24px;
     color: #333;
 }
-.form-group {
-    margin-bottom: 15px;
-    text-align: left;
-}
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: bold;
-    color: #555;
-}
-.form-group input {
+
+input {
     width: 100%;
-    padding: 10px;
+    margin: 10px 0;
+    padding: 12px;
+    background-color: #eee;
     border: 1px solid #ddd;
-    border-radius: 4px;
-    box-sizing: border-box;
+    border-radius: 5px;
 }
-.form-group input[type="submit"] {
-    background-color: #28a745;
-    color: #fff;
+
+.forget-password {
+    display: inline-block;
+    text-decoration: none;
+    color: #bbb;
+    text-transform: capitalize;
+    font-size: 12px;
+    margin: 10px 0;
+}
+
+.forget-password:hover {
+    color: lightslategray;
+    border-bottom: 2px solid #ff4b2b;
+}
+
+button {
+    background: #ff4b2b;
+    padding: 10px 20px;
     border: none;
+    border-radius: 5px;
+    text-transform: uppercase;
+    color: white;
+    margin-top: 10px;
     cursor: pointer;
-    font-size: 16px;
+    transition: background 0.3s;
 }
-.form-group input[type="submit"]:hover {
-    background-color: #218838;
+
+button:hover {
+    background: #e43f2a;
 }
-.form-group input[type="button"] {
-    background-color: #007bff;
-    color: #fff;
+
+.register-button {
+    background: #ff4b2b;
+    padding: 10px 20px;
     border: none;
+    border-radius: 5px;
+    text-transform: uppercase;
+    color: white;
+    margin-top: 10px;
     cursor: pointer;
-    font-size: 16px;
-}
-.form-group input[type="button"]:hover {
-    background-color: #0056b3;
+    transition: background 0.3s;
 }
