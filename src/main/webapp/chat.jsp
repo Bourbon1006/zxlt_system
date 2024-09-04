@@ -19,7 +19,8 @@
         <div id="chat" class="chat-box"></div>
         <div class="message-input-container">
             <input id="message" type="text" placeholder="Enter your message"/>
-            <input id="targetUser" type="text" placeholder="Enter recipient's user ID"/>
+            <!-- 将输入框的占位符从 User ID 改为 Username -->
+            <input id="targetUser" type="text" placeholder="Enter recipient's username"/>
             <button onclick="sendMessage()">Send</button>
         </div>
     </div>
@@ -50,7 +51,7 @@
                 users.forEach(user => {
                     if (user) {
                         let li = document.createElement("li");
-                        li.textContent = user;
+                        li.textContent = user;  // 显示用户名而不是 ID
                         usersList.appendChild(li);
                     }
                 });
@@ -69,11 +70,11 @@
             let message = document.getElementById("message").value;
             let targetUser = document.getElementById("targetUser").value;
             if (targetUser) {
-                // 发送私人消息
+                // 使用用户名发送私人消息
                 ws.send("SEND:" + targetUser + ":" + message);
             } else {
-                // 广播消息（如果你想支持的话）
-                ws.send(message);
+                // 如果没有指定目标用户，则提示错误或忽略
+                alert("Please enter a recipient's username.");
             }
             document.getElementById("message").value = '';  // 清空输入框
         }

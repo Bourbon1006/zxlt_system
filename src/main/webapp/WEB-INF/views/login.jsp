@@ -17,7 +17,7 @@
     <form id="loginForm">
       <input type="text" id="username" name="username" placeholder="Username..." required>
       <input type="password" id="password" name="password" placeholder="Password..." required>
-      <a href="#" class="forget-password">Forgot your password?</a>
+<%--      <a href="#" class="forget-password">Forgot your password?</a>--%>
       <button type="submit">Sign In</button>
       <button type="button" class="register-button" onclick="window.location.href='register'">Sign Up</button>
     </form>

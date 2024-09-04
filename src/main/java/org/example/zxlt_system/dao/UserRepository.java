@@ -38,6 +38,28 @@ public class UserRepository {
             }
         }
         return null;
+    
+    }
+    public User findById(int userId) throws SQLException {
+        String query = "SELECT * FROM users WHERE id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setInt(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapUserFromResultSet(rs);
+                }
+            }
+        }
+        return null;
+    }
+
+    private User mapUserFromResultSet(ResultSet rs) throws SQLException {
+        User user = new User();
+        user.setId(rs.getInt("id"));
+        user.setUsername(rs.getString("username"));
+        user.setPassword(rs.getString("password"));
+        user.setEmail(rs.getString("email"));
+        return user;
     }
 
     // 关闭数据库连接
@@ -50,4 +72,6 @@ public class UserRepository {
             }
         }
     }
+
+
 }

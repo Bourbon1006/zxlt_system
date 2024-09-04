@@ -1,9 +1,13 @@
 package org.example.zxlt_system.controller;
 
+import org.example.zxlt_system.dao.UserRepository;
+import org.example.zxlt_system.model.User;
+
 import javax.websocket.*;
 import javax.websocket.server.PathParam;
 import javax.websocket.server.ServerEndpoint;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -14,14 +18,32 @@ public class ChatEndpoint {
 
     private static final Map<String, Session> userSessions = new HashMap<>();
     private static final Map<String, String> userIdToUsername = new HashMap<>();  // 用户 ID 到用户名的映射
+    private static final Map<String, String> usernameToUserId = new HashMap<>();  // 用户名到用户 ID 的映射
     private static final Set<String> onlineUsers = new HashSet<>();
 
     @OnOpen
     public void onOpen(Session session, @PathParam("userId") String userId) throws IOException {
         userSessions.put(userId, session);
         onlineUsers.add(userId);
-        userIdToUsername.put(userId, "User" + userId);  // 示例：将用户 ID 映射到用户名
+        String username = getUsernameFromDatabase(userId);  // 从数据库获取用户名
+        userIdToUsername.put(userId, username);
+        usernameToUserId.put(username, userId);  // 添加用户名到用户 ID 的映射
         broadcastOnlineUsers();
+    }
+
+    private String getUsernameFromDatabase(String userId) {
+        // 实现数据库查询逻辑，使用 UserRepository 获取用户名
+        UserRepository userRepository = new UserRepository();
+        try {
+            // 假设 userId 是用户的数据库 ID
+            User user = userRepository.findById(Integer.parseInt(userId));
+            if (user != null) {
+                return user.getUsername();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return "未知用户";  // 如果没有找到用户，返回一个默认值
     }
 
     @OnMessage
@@ -33,14 +55,20 @@ public class ChatEndpoint {
                     session.getBasicRemote().sendText("ERROR: Invalid message format");
                     return;
                 }
-                String targetUserId = parts[1];
+                String targetUsername = parts[1];  // 改为使用用户名
                 String msg = parts[2];
-                Session targetSession = userSessions.get(targetUserId);
-                if (targetSession != null && targetSession.isOpen()) {
-                    String senderUsername = userIdToUsername.getOrDefault(userId, userId);
-                    targetSession.getBasicRemote().sendText(senderUsername + ": " + msg);
+                String targetUserId = usernameToUserId.get(targetUsername);  // 根据用户名查找用户 ID
+
+                if (targetUserId != null) {
+                    Session targetSession = userSessions.get(targetUserId);
+                    if (targetSession != null && targetSession.isOpen()) {
+                        String senderUsername = userIdToUsername.getOrDefault(userId, userId);
+                        targetSession.getBasicRemote().sendText(senderUsername + ": " + msg);
+                    } else {
+                        session.getBasicRemote().sendText("ERROR: Target user not found or not connected");
+                    }
                 } else {
-                    session.getBasicRemote().sendText("ERROR: Target user not found or not connected");
+                    session.getBasicRemote().sendText("ERROR: Invalid target username");
                 }
             } else if ("GET_USERS".equals(message)) {
                 broadcastOnlineUsers();
@@ -81,7 +109,10 @@ public class ChatEndpoint {
     public void onClose(Session session, @PathParam("userId") String userId) {
         userSessions.remove(userId);
         onlineUsers.remove(userId);
-        userIdToUsername.remove(userId);
+        String username = userIdToUsername.remove(userId);
+        if (username != null) {
+            usernameToUserId.remove(username);  // 移除用户名到用户 ID 的映射
+        }
         try {
             broadcastOnlineUsers();
         } catch (IOException e) {
@@ -103,10 +134,17 @@ public class ChatEndpoint {
     }
 
     private void broadcastOnlineUsers() throws IOException {
-        String usersList = String.join(",", onlineUsers);
+        // 更新为发送用户名列表而不是用户 ID 列表
+        StringBuilder usersList = new StringBuilder();
+        for (String userId : onlineUsers) {
+            usersList.append(userIdToUsername.getOrDefault(userId, "未知用户")).append(",");
+        }
+        if (usersList.length() > 0) {
+            usersList.setLength(usersList.length() - 1);  // 去掉最后一个逗号
+        }
         for (Session session : userSessions.values()) {
             if (session.isOpen()) {
-                session.getBasicRemote().sendText("ONLINE_USERS:" + usersList);
+                session.getBasicRemote().sendText("ONLINE_USERS:" + usersList.toString());
             }
         }
     }
