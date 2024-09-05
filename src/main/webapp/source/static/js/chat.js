@@ -1,3 +1,17 @@
+function logout() {
+    // 清除用户 session 或其他登录状态
+    fetch('/logout', { method: 'GET' })  // 调用后端 logout 服务
+        .then(response => {
+            if (response.ok) {
+                // 重定向到登录页面
+                window.location.href = "/login";
+            } else {
+                alert("Failed to logout. Please try again.");
+            }
+        })
+        .catch(error => console.error('Error:', error));
+}
+
 function connectWebSocket() {
     let userId = sessionStorage.getItem('userId');
     let currentUsername = sessionStorage.getItem('username'); // 确保获取用户名
@@ -86,3 +100,5 @@ function connectWebSocket() {
 
 // 在页面加载时连接 WebSocket
 window.onload = connectWebSocket;
+
+
