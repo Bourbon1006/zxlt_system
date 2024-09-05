@@ -2,12 +2,12 @@
 <rebel>
     <classpath>
         <!-- 使用绝对路径指向编译后的类文件目录 -->
-        <dir name=""/>
+        <dir name="C:\Users\Administrator\Desktop\demo\zxlt_system\target\classes"/>
     </classpath>
     <web>
         <!-- 使用绝对路径指向Web资源目录 -->
         <link target="/">
-            <dir name=""/>
+            <dir name="C:\Users\Administrator\Desktop\demo\zxlt_system\src\main\webapp"/>
         </link>
     </web>
 </rebel>

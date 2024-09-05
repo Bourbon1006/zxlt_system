@@ -17,8 +17,9 @@ document.getElementById('loginForm').addEventListener('submit', function(event) 
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // 存储用户 ID 并重定向到聊天页面
+                // 存储用户 ID与用户名并重定向到聊天页面
                 sessionStorage.setItem('userId', data.userId);
+                sessionStorage.setItem('username', username);
                 window.location.href = '/chat.jsp';  // 假设聊天页面是 chat.jsp
             } else {
                 document.getElementById('error-message').textContent = '登录失败，请检查用户名和密码。';
