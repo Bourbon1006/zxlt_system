@@ -19,7 +19,7 @@ public class DBConnection {
                 Class.forName(driver);
                 // 获取数据库连接
                 connection = DriverManager.getConnection(url, username, password);
-                System.out.println("Database connection established successfully.");
+                //System.out.println("Database connection established successfully.");
             } catch (ClassNotFoundException e) {
                 System.err.println("MySQL JDBC Driver not found.");
                 e.printStackTrace();

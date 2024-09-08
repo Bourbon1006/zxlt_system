@@ -1,5 +1,6 @@
 package org.example.zxlt_system.controller;
 
+import org.example.zxlt_system.dao.FriendRepository;
 import org.example.zxlt_system.dao.UserRepository;
 import org.example.zxlt_system.model.User;
 import jakarta.websocket.*;
@@ -11,6 +12,7 @@ import redis.clients.jedis.JedisPoolConfig;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,29 +21,29 @@ import java.util.Map;
 public class ChatEndpoint {
 
     private static final Map<String, Session> userSessions = new HashMap<>();
-    private static final JedisPool jedisPool = new JedisPool(new JedisPoolConfig(), "localhost", 6379);// 创建 Redis 连接池
+    private static final JedisPool jedisPool = new JedisPool(new JedisPoolConfig(), "localhost", 6379); // 创建 Redis 连接池
+    private final FriendRepository friendRepository = new FriendRepository();
 
     @OnOpen
     public void onOpen(Session session, @PathParam("userId") String userId) throws IOException {
+        userSessions.put(userId, session);  // 先将用户加入会话列表
+
+        // 直接从数据库获取用户名
+        String username = getUsernameFromDatabase(userId);
+        if (username == null) {
+            username = "未知用户";  // 防止用户名为空
+        }
+
         try (Jedis jedis = jedisPool.getResource()) {
-            userSessions.put(userId, session);
-
-            // 从数据库获取用户名
-            String username = getUsernameFromDatabase(userId);
-            if (username == null) {
-                username = "未知用户"; // 防止用户名为空
-            }
-
             // 更新 Redis 哈希表
             jedis.hset("usernameToUserId", username, userId);
             jedis.hset("userIdToUsername", userId, username);
 
-            // 发布用户加入的消息
-            jedis.publish("userChannel", "User " + username + " joined the chat");
-            //System.out.println("User joined: " + username + " (" + userId + ")");
-
             // 将用户 ID 添加到 Redis 集合
             jedis.sadd("onlineUsers", userId);
+
+            // 发布用户加入的消息
+            jedis.publish("userChannel", "User " + username + " joined the chat");
 
             // 广播在线用户列表
             broadcastOnlineUsers();
@@ -65,34 +67,10 @@ public class ChatEndpoint {
     public void onMessage(String message, Session session, @PathParam("userId") String userId) {
         try (Jedis jedis = jedisPool.getResource()) {
             if (message.startsWith("SEND:")) {
-                // 处理发送的消息
-                String[] parts = message.split(":", 3);
-                if (parts.length < 3) {
-                    session.getBasicRemote().sendText("ERROR: Invalid message format");
-                    return;
-                }
-
-                String targetUsername = parts[1];
-                String msg = parts[2];
-
-                // 从 Redis 获取当前用户名
-                String currentUsername = jedis.hget("userIdToUsername", userId);
-                if (currentUsername == null) {
-                    currentUsername = "未知用户"; // 防止用户名为空
-                }
-
-                // 格式化消息内容
-                String formattedMessage = currentUsername + ":" + msg;
-
-                // 将消息存储到 Redis
-                jedis.rpush("chatRecords", formattedMessage);
-
-                // 广播消息给所有用户
-                for (Session s : userSessions.values()) {
-                    if (s.isOpen()) {
-                        s.getBasicRemote().sendText(formattedMessage);
-                    }
-                }
+                handleChatMessage(message, session, userId, jedis);
+            } else if (message.startsWith("ADD_FRIEND:") || message.startsWith("REMOVE_FRIEND:") ||
+                    message.startsWith("ACCEPT_FRIEND:") || message.startsWith("REJECT_FRIEND:")) {
+                handleFriendMessage(message, userId, session);
             } else if ("GET_USERS".equals(message)) {
                 broadcastOnlineUsers();
             } else if ("GET_HISTORY".equals(message)) {
@@ -103,7 +81,13 @@ public class ChatEndpoint {
                     history.append(record).append("\n");
                 }
                 session.getBasicRemote().sendText(history.toString());
-            } else if (message.startsWith("SYSTEM:")) {
+            }
+            else if (message.startsWith("GET_FRIENDS")) {
+                List<String> friendsList = Collections.singletonList(FriendRepository.getFriendsList(Integer.parseInt(userId)));
+                String friendsString = String.join(",", friendsList);
+                session.getBasicRemote().sendText("FRIENDS_LIST:" + friendsString);
+            }
+            else if (message.startsWith("SYSTEM:")) {
                 String systemMessage = message.substring(7);
                 jedis.publish("systemChannel", systemMessage);
             } else {
@@ -118,9 +102,122 @@ public class ChatEndpoint {
         }
     }
 
+    private void handleChatMessage(String message, Session session, String userId, Jedis jedis) throws IOException {
+        String[] parts = message.split(":", 3);
+        if (parts.length < 3) {
+            session.getBasicRemote().sendText("ERROR: Invalid message format");
+            return;
+        }
+
+        String targetUsername = parts[1];
+        String msg = parts[2];
+
+        // 从 Redis 获取当前用户名
+        String currentUsername = jedis.hget("userIdToUsername", userId);
+        if (currentUsername == null) {
+            currentUsername = "未知用户"; // 防止用户名为空
+        }
+
+        // 禁止用户向自己发送消息
+        if (currentUsername.equals(targetUsername)) {
+            session.getBasicRemote().sendText("ERROR: You cannot send a message to yourself.");
+            return;
+        }
+
+        // 格式化消息内容
+        String formattedMessage = currentUsername + ":" + msg;
+
+        // 将消息存储到 Redis
+        jedis.rpush("chatRecords", formattedMessage);
+
+        // 广播消息给所有用户
+        for (Session s : userSessions.values()) {
+            if (s.isOpen()) {
+                s.getBasicRemote().sendText(formattedMessage);
+            }
+        }
+    }
+
+    private void handleFriendMessage(String message, String userId, Session session) {
+        try {
+            int userIdInt = Integer.parseInt(userId);
+            String[] parts = message.split(":", 2);
+            String action = parts[0];
+            String friendUsername = parts.length > 1 ? parts[1] : "";
+            int friendId = friendRepository.getUserIdByUsername(friendUsername);
+
+            if (friendId == -1) {
+                session.getBasicRemote().sendText("ERROR: User not found.");
+                return;
+            }
+
+            String responseMessage = "";
+            boolean success = false;
+
+            switch (action) {
+                case "ADD_FRIEND":
+                    success = friendRepository.addFriend(userIdInt, friendId);
+                    responseMessage = success ? friendUsername + " 好友请求已发送" : "ERROR: Operation failed.";
+                    if (success) {
+                        // Notify friend
+                        Session friendSession = userSessions.get(String.valueOf(friendId));
+                        if (friendSession != null && friendSession.isOpen()) {
+                            friendSession.getBasicRemote().sendText("FRIEND_REQUEST:" + getUsernameFromDatabase(userId));
+                        }
+                    }
+                    break;
+                case "REMOVE_FRIEND":
+                    success = friendRepository.removeFriend(userIdInt, friendId);
+                    responseMessage = success ? "Friend removed." : "ERROR: Operation failed.";
+                    break;
+                case "ACCEPT_FRIEND":
+                    success = friendRepository.acceptFriendRequest(friendId, userIdInt);
+                    responseMessage = success ? "Friend request accepted." : "ERROR: Operation failed.";
+                    if (success) {
+                        // Notify requester
+                        Session requesterSession = userSessions.get(String.valueOf(friendId));
+                        if (requesterSession != null && requesterSession.isOpen()) {
+                            requesterSession.getBasicRemote().sendText(getUsernameFromDatabase(userId) + " 好友请求已通过");
+                        }
+                    }
+                    break;
+                case "REJECT_FRIEND":
+                    success = friendRepository.updateFriendRequestStatus(friendId, userIdInt, "rejected");
+                    responseMessage = success ? "Friend request rejected." : "ERROR: Operation failed.";
+                    break;
+                case "GET_FRIENDS":
+                    String friends = FriendRepository.getFriendsList(userIdInt); // 获取好友列表
+                    session.getBasicRemote().sendText("FRIENDS_LIST:" + friends);
+                    return; // 已经处理完响应，不需要再发送默认消息
+            }
+
+            // 发送响应消息
+            session.getBasicRemote().sendText(responseMessage);
+
+        } catch (SQLException | IOException e) {
+            e.printStackTrace();
+            try {
+                if (session.isOpen()) {
+                    session.getBasicRemote().sendText("ERROR: An error occurred while processing your request. Details: " + e.getMessage());
+                }
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
+            }
+        }
+    }
 
 
-
+    private void notifyFriendRequest(String friendUsername, int userId) throws IOException {
+        String userIdString = String.valueOf(userId);
+        Session friendSession = userSessions.get(userIdString);
+        if (friendSession != null && friendSession.isOpen()) {
+            String requesterUsername = getUsernameFromDatabase(userIdString);
+            if (requesterUsername == null) {
+                requesterUsername = "未知用户";
+            }
+            friendSession.getBasicRemote().sendText("FRIEND_REQUEST:" + requesterUsername);
+        }
+    }
 
     private void sendErrorMessage(Session session, String errorMessage) {
         try {
@@ -142,19 +239,23 @@ public class ChatEndpoint {
             e.printStackTrace();
         }
     }
+
     @OnError
     public void onError(Session session, Throwable throwable) {
         System.err.println("Error in WebSocket session: " + throwable.getMessage());
         throwable.printStackTrace();
-        sendErrorMessage(session, "An error occurred");
+        try {
+            if (session.isOpen()) {
+                session.getBasicRemote().sendText("ERROR: An unexpected error occurred.");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void broadcastOnlineUsers() throws IOException {
         try (Jedis jedis = jedisPool.getResource()) {
             StringBuilder usersList = new StringBuilder();
-
-            // 打印当前在线用户集合
-            //System.out.println("Online users in Redis: " + jedis.smembers("onlineUsers"));
 
             for (String userId : jedis.smembers("onlineUsers")) {
                 String username = jedis.hget("userIdToUsername", userId);
@@ -163,15 +264,10 @@ public class ChatEndpoint {
                 }
             }
 
-            // 去掉最后的逗号
             if (usersList.length() > 0) {
                 usersList.setLength(usersList.length() - 1);
             }
 
-            // 打印广播的用户列表
-            //System.out.println("Broadcasting online users: " + usersList.toString());
-
-            // 发送给所有连接的用户
             for (Session session : userSessions.values()) {
                 if (session.isOpen()) {
                     session.getBasicRemote().sendText("ONLINE_USERS:" + usersList.toString());
@@ -179,5 +275,4 @@ public class ChatEndpoint {
             }
         }
     }
-
 }
