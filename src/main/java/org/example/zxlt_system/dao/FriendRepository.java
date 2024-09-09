@@ -143,20 +143,23 @@ public class FriendRepository {
         return friendsList.toString();
     }
 
-    // 检查用户是否已经是好友
-    public boolean isFriend(int userId, int friendId) throws SQLException {
-        String query = "SELECT COUNT(*) FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'accepted'";
+    public boolean areFriends(int userId1, int userId2) {
+        String query = "SELECT * FROM friends WHERE (user_id = ? AND friend_id = ? AND status = 'accepted') AND (user_id = ? AND friend_id = ? AND status = 'accepted')";
         try (
-             PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setInt(1, userId);
-            statement.setInt(2, friendId);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                resultSet.next();
-                return resultSet.getInt(1) > 0;
+                PreparedStatement pstmt = connection.prepareStatement(query)) {
+            pstmt.setInt(1, userId1);
+            pstmt.setInt(2, userId2);
+            pstmt.setInt(3, userId2);
+            pstmt.setInt(4, userId1);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next();
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-
+        return false;
     }
+
     // 关闭数据库连接
     public void close() {
         try {
@@ -167,6 +170,8 @@ public class FriendRepository {
             e.printStackTrace();
         }
     }
+
+
 
 
 }

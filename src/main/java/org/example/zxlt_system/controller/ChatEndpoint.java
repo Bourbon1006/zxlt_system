@@ -81,13 +81,13 @@ public class ChatEndpoint {
                     history.append(record).append("\n");
                 }
                 session.getBasicRemote().sendText(history.toString());
-            }
-            else if (message.startsWith("GET_FRIENDS")) {
+            } else if (message.startsWith("GET_FRIENDS")) {
                 List<String> friendsList = Collections.singletonList(FriendRepository.getFriendsList(Integer.parseInt(userId)));
                 String friendsString = String.join(",", friendsList);
                 session.getBasicRemote().sendText("FRIENDS_LIST:" + friendsString);
-            }
-            else if (message.startsWith("SYSTEM:")) {
+            } else if (message.startsWith("CHANGE_PASSWORD:")) {
+                handleChangePassword(message, userId, session);
+            } else if (message.startsWith("SYSTEM:")) {
                 String systemMessage = message.substring(7);
                 jedis.publish("systemChannel", systemMessage);
             } else {
@@ -102,7 +102,46 @@ public class ChatEndpoint {
         }
     }
 
-    private void handleChatMessage(String message, Session session, String userId, Jedis jedis) throws IOException {
+    private void handleChangePassword(String message, String userId, Session session) {
+        String[] parts = message.split(":");
+        if (parts.length != 3) {
+            sendErrorMessage(session, "Invalid format for change password request.");
+            return;
+        }
+
+        String oldPassword = parts[1];
+        String newPassword = parts[2];
+
+        try {
+            // 从数据库获取用户信息
+            UserRepository userRepository = new UserRepository();
+            User user = userRepository.findById(Integer.parseInt(userId));
+
+            if (user == null) {
+                sendErrorMessage(session, "User not found.");
+                return;
+            }
+
+            // 检查旧密码是否匹配
+            if (!user.getPassword().equals(oldPassword)) {
+                sendErrorMessage(session, "Old password is incorrect.");
+                return;
+            }
+
+            // 更新密码
+            boolean updated = userRepository.updatePassword(Integer.parseInt(userId), newPassword);
+            if (updated) {
+                session.getBasicRemote().sendText("PASSWORD_CHANGE_SUCCESS: Your password has been updated.");
+            } else {
+                sendErrorMessage(session, "Failed to update the password. Please try again later.");
+            }
+        } catch (SQLException | IOException e) {
+            e.printStackTrace();
+            sendErrorMessage(session, "An error occurred while changing the password. Details: " + e.getMessage());
+        }
+    }
+
+    private void handleChatMessage(String message, Session session, String userId, Jedis jedis) throws IOException, SQLException {
         String[] parts = message.split(":", 3);
         if (parts.length < 3) {
             session.getBasicRemote().sendText("ERROR: Invalid message format");
@@ -124,19 +163,38 @@ public class ChatEndpoint {
             return;
         }
 
+        // 获取接收者的 userId
+        int targetUserId = friendRepository.getUserIdByUsername(targetUsername);
+        if (targetUserId == -1) {
+            session.getBasicRemote().sendText("ERROR: User not found.");
+            return;
+        }
+
+        // 检查两者是否为好友
+        int currentUserId = Integer.parseInt(userId);
+        if (!friendRepository.areFriends(currentUserId, targetUserId)) {
+            session.getBasicRemote().sendText("ERROR: You can only send messages to your friends.");
+            return;
+        }
+
         // 格式化消息内容
         String formattedMessage = currentUsername + ":" + msg;
 
         // 将消息存储到 Redis
         jedis.rpush("chatRecords", formattedMessage);
 
-        // 广播消息给所有用户
-        for (Session s : userSessions.values()) {
-            if (s.isOpen()) {
-                s.getBasicRemote().sendText(formattedMessage);
-            }
+        // 发送消息给目标用户
+        Session targetSession = userSessions.get(String.valueOf(targetUserId));
+        if (targetSession != null && targetSession.isOpen()) {
+            targetSession.getBasicRemote().sendText(formattedMessage);
+        } else {
+            session.getBasicRemote().sendText("ERROR: Target user is not online.");
         }
+
+        // 也把消息发送给自己，确认消息发送成功
+        session.getBasicRemote().sendText("我发送给" + targetUsername + ": " + msg);
     }
+
 
     private void handleFriendMessage(String message, String userId, Session session) {
         try {

@@ -22,6 +22,17 @@ public class UserRepository {
         }
     }
 
+    public boolean updatePassword(int userId, String newPassword) throws SQLException {
+        String sql = "UPDATE users SET password = ? WHERE id = ?";
+        try (
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, newPassword);
+            statement.setInt(2, userId);
+            int rowsUpdated = statement.executeUpdate();
+            return rowsUpdated > 0;
+        }
+    }
+
     public User findByUsername(String username) throws SQLException {
         String query = "SELECT * FROM users WHERE username = ?";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
@@ -60,6 +71,38 @@ public class UserRepository {
         user.setPassword(rs.getString("password"));
         user.setEmail(rs.getString("email"));
         return user;
+    }
+
+    public boolean isUsernameAndEmailValid(String username, String email) {
+        String query = "SELECT COUNT(*) FROM users WHERE username = ? AND email = ?";
+        try (
+             PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, username);
+            stmt.setString(2, email);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean resetPassword(String username, String newPassword, String email) {
+        if (isUsernameAndEmailValid(username, email)) {
+            String updateQuery = "UPDATE users SET password = ? WHERE username = ? AND email = ?";
+            try (PreparedStatement stmt = connection.prepareStatement(updateQuery)) {
+                stmt.setString(1, newPassword);
+                stmt.setString(2, username);
+                stmt.setString(3, email);
+                int rowsAffected = stmt.executeUpdate();
+                return rowsAffected > 0;
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        return false;
     }
 
     // 关闭数据库连接

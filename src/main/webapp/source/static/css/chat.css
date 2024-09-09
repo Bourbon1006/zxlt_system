@@ -16,17 +16,13 @@
     left: 0;
     top: 0;
     height: 100%;
-    overflow: hidden;
-    transition: opacity 0.3s ease;
+    overflow: hidden; /* 移除菜单栏隐藏效果 */
+    transition: none; /* 移除过渡效果 */
 }
 
-/* 菜单栏按钮容器 */
+/* 显示菜单栏按钮容器 */
 #menuButtons {
-    display: none;
-}
-
-#menu:hover #menuButtons {
-    display: flex;
+    display: flex; /* 直接显示按钮容器 */
     flex-direction: column;
 }
 
@@ -92,7 +88,6 @@
     display: block;
     /* 其他样式 */
 }
-
 
 .dialog button {
     margin-top: 10px;
