@@ -11,7 +11,7 @@
     <!-- 菜单栏 -->
     <div id="menu">
         <div id="menuButtons">
-            <button onclick="showAddFriendDialog()">增加用户</button>
+            <button onclick="showAddUserDialog()">增加用户</button>
             <button onclick="showRemoveFriendDialog()">删除用户</button>
             <button onclick="showFriendsDialog()">更改用户信息</button>
             <button onclick="showOnlineUsersDialog()">查看在线用户</button>
@@ -35,11 +35,15 @@
 </div>
 
 <!-- 添加好友的对话框 -->
-<div id="addFriendDialog" class="dialog">
-    <label for="friendName">好友用户名:</label>
-    <input type="text" id="friendName">
-    <button onclick="addFriend()">确认添加</button>
-    <button onclick="closeDialog('addFriendDialog')">取消</button>
+<div id="addUserDialog" class="dialog">
+    <label for="username">用户名:</label>
+    <input type="text" id="username">
+    <label for="password">密码:</label>
+    <input type="text" id="password">
+    <label for="email">邮箱:</label>
+    <input type="text" id="email">
+    <button onclick="addUsers()">确认添加</button>
+    <button onclick="closeDialog('addUserDialog')">取消</button>
 </div>
 
 <!-- 删除好友的对话框 -->
@@ -112,6 +116,71 @@
         };
     };
 
+    // 显示对话框
+    function showDialog(dialogId) {
+        document.getElementById(dialogId).classList.add("show");
+    }
+
+    // 关闭对话框
+    function closeDialog(dialogId) {
+        document.getElementById(dialogId).classList.remove("show");
+    }
+
+    // 处理收到的消息
+    function handleMessage(message) {
+        if(message.startsWith("ADD_USER:")) {
+            addUsers(message.substring(9));
+        }
+        else if (message.startsWith("ONLINE_USERS:")) {
+            updateOnlineUsers(message.substring(13));
+        } else if (message.startsWith("CHAT_HISTORY:")) {
+            displayChatHistory(message.substring(13));
+        } else if (message.startsWith("FRIEND_REQUEST:")) {
+            let requester = message.substring(15);
+            openFriendRequestDialog(requester);
+        } else if (message.startsWith("FRIENDS_LIST:")) {
+            let friends = message.substring(13);
+            displayFriendsList(friends);
+        } else if (message.startsWith("ADD_FRIEND") ||
+            message.startsWith("ACCEPT_FRIEND") ||
+            message.startsWith("REJECT_FRIEND")) {
+            alert(message);
+        } else {
+            displayChatMessage(message);
+        }
+    }
+
+
+    // 显示聊天消息
+    function displayChatMessage(message) {
+        let chatMessages = document.getElementById("chatMessages");
+        let p = document.createElement("p");
+
+        // 假设消息格式为 "用户名:消息内容"
+        let [username, ...messageParts] = message.split(":");
+        let messageContent = messageParts.join(":");
+
+        p.textContent = username === currentUsername ? "我: " + messageContent : message;
+        chatMessages.appendChild(p);
+
+        // 自动滚动到最新消息
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // 显示聊天记录
+    function displayChatHistory(history) {
+        let chatMessages = document.getElementById("chatMessages");
+        chatMessages.innerHTML = ""; // 清空聊天记录
+
+        history.split("\n").forEach(function(record) {
+            if (record.trim() !== "") {
+                displayChatMessage(record);
+            }
+        });
+    }
+
+    // 其他功能函数保持不变
+
     function logout() {
         if (socket) {
             socket.close(); // 关闭WebSocket连接
@@ -146,13 +215,6 @@
         });
     }
 
-    // 当用户点击“接受”按钮
-    function acceptFriendRequest() {
-        let requester = document.getElementById("requesterName").textContent;
-        socket.send("ACCEPT_FRIEND:" + requester); // 发送接受好友请求
-        closeDialog("friendRequestDialog");
-    }
-
 
     // 发送聊天消息
     function sendMessage() {
@@ -172,28 +234,6 @@
         }
     }
 
-    // 处理接收到的消息
-    function handleMessage(message) {
-        if (message.startsWith("ONLINE_USERS:")) {
-            updateOnlineUsers(message.substring(13));
-        } else if (message.startsWith("CHAT_HISTORY:")) {
-            displayChatHistory(message.substring(13));
-        } else if (message.startsWith("FRIEND_REQUEST:")) {
-            let requester = message.substring(15);
-            showFriendRequestDialog(requester);
-        } else if (message.startsWith("FRIENDS_LIST:")) {
-            let friends = message.substring(13);
-            displayFriendsList(friends);
-        } else if (message.startsWith("ADD_FRIEND")) {
-            alert(message); // 好友请求已发送
-        } else if (message.startsWith("ACCEPT_FRIEND")) {
-            alert(message); // 好友请求已接受
-        } else if (message.startsWith("REJECT_FRIEND")) {
-            alert(message); // 好友请求已拒绝
-        } else {
-            displayChatMessage(message);
-        }
-    }
     // 显示修改密码的对话框
     function showChangePasswordDialog() {
         document.getElementById("changePasswordDialog").classList.add("show");
@@ -201,25 +241,7 @@
 
     // 处理修改密码逻辑
     function changePassword() {
-        let oldPassword = document.getElementById("oldPassword").value;
-        let newPassword = document.getElementById("newPassword").value;
-        let confirmNewPassword = document.getElementById("confirmNewPassword").value;
 
-        if (newPassword !== confirmNewPassword) {
-            alert("新密码和确认密码不一致，请重新输入！");
-            return;
-        }
-
-        if (oldPassword.trim() === "" || newPassword.trim() === "" || confirmNewPassword.trim() === "") {
-            alert("所有字段都是必填项！");
-            return;
-        }
-
-        // 使用 WebSocket 发送修改密码请求
-        socket.send("CHANGE_PASSWORD:" + oldPassword + ":" + newPassword);
-
-        // 关闭对话框
-        closeDialog("changePasswordDialog");
     }
 
 
@@ -232,41 +254,13 @@
 
     // 获取好友列表
     function fetchFriendsList() {
-        socket.send("GET_FRIENDS");
+
     }
 
     // 更新好友列表
     function updateFriendsList(friends) {
-        let friendsListElement = document.getElementById("friendsList");
-        friendsListElement.innerHTML = ""; // 清空当前好友列表
 
-        friends.split(",").forEach(function(username) {
-            let li = document.createElement("li");
-            li.textContent = username;
-            friendsListElement.appendChild(li);
-        });
     }
-
-
-    // 处理服务器返回的好友列表
-    socket.onmessage = function(event) {
-        let message = event.data;
-        if (message.startsWith("FRIENDS_LIST:")) {
-            let friends = message.substring(13); // 提取好友列表
-            updateFriendsList(friends); // 更新好友列表显示
-        } else if (message.startsWith("FRIEND_REQUEST:")) {
-            let requester = message.substring(15);
-            showFriendRequestDialog(requester);
-        } else if (message.startsWith("ADD_FRIEND")) {
-            alert(message);
-        } else if (message.startsWith("ACCEPT_FRIEND")) {
-            alert(message);
-        } else if (message.startsWith("REJECT_FRIEND")) {
-            alert(message);
-        } else {
-            displayChatMessage(message);
-        }
-    };
 
 
     // 获取聊天记录
@@ -274,41 +268,9 @@
         socket.send("GET_HISTORY");
     }
 
-    // 显示聊天消息
-    function displayChatMessage(message) {
-        let chatMessages = document.getElementById("chatMessages");
-        let p = document.createElement("p");
-
-        // 假设消息格式为 "用户名:消息内容"
-        let messageParts = message.split(":");
-        let username = messageParts[0];
-        let messageContent = messageParts.slice(1).join(":");
-
-        // 判断消息是否是自己发的（假设 currentUsername 是当前用户的用户名）
-        if (username === currentUsername) {
-            p.textContent = "我: " + messageContent;
-        } else {
-            p.textContent = message;
-        }
-
-        chatMessages.appendChild(p);
-    }
-
-    // 显示聊天记录
-    function displayChatHistory(history) {
-        let chatMessages = document.getElementById("chatMessages");
-        chatMessages.innerHTML = ""; // 清空聊天记录
-        history.split("\n").forEach(function(record) {
-            if (record.trim() !== "") {
-                displayChatMessage(record);
-            }
-        });
-    }
-
-
     // 显示添加好友的对话框
-    function showAddFriendDialog() {
-        document.getElementById("addFriendDialog").classList.add("show");
+    function showAddUserDialog() {
+        document.getElementById("addUserDialog").classList.add("show");
     }
 
     // 显示删除好友的对话框
@@ -317,29 +279,20 @@
     }
 
 
-    // 添加好友
-    function addFriend() {
-        let friendName = document.getElementById("friendName").value;
-        if (friendName.trim() !== "") {
-            socket.send("ADD_FRIEND:" + friendName); // 发送添加好友请求
-            closeDialog("addFriendDialog");
+    // 添加用户
+    function addUsers() {
+        let username = document.getElementById("username").value;
+        let password = document.getElementById("password").value;
+        let email = document.getElementById("email").value;
+        if (username.trim() !== ""&&password.trim() !== ""&&email.trim()!=="") {
+            socket.send("ADD_USER:" + username + ":" + password + ":" + email); // 发送添加用户请求
+            closeDialog("addUserDialog");
         }
     }
 
     // 删除好友
     function removeFriend() {
-        let friendName = document.getElementById("removeFriendName").value;
-        if (friendName.trim() !== "") {
-            socket.send("REMOVE_FRIEND:" + friendName); // 发送删除好友请求
-            closeDialog("removeFriendDialog");
-        }
-    }
 
-    // 显示好友请求的对话框
-    function showFriendRequestDialog(requester) {
-        let dialog = document.getElementById("friendRequestDialog");
-        document.getElementById("requesterName").textContent = requester;
-        dialog.classList.add("show");
     }
 
     // 显示在线用户的对话框
@@ -367,33 +320,6 @@
         });
     }
 
-    // 关闭对话框
-    function closeDialog(dialogId) {
-        document.getElementById(dialogId).classList.remove("show");
-    }
-
-
-
-    // 处理服务器返回的好友请求更新
-    socket.onmessage = function(event) {
-        let message = event.data;
-        if (message.startsWith("FRIEND_REQUEST:")) {
-            // 处理收到的好友请求
-            let requester = message.substring(14); // 提取请求者用户名
-            // 例如，显示一个弹窗或更新好友请求列表
-        } else if (message.startsWith("FRIEND_REQUEST_ACCEPTED:")) {
-            // 处理好友请求被接受的情况
-            let requester = message.substring(24); // 提取请求者用户名
-            // 更新界面，显示请求已被接受
-            alert("Your friend request has been accepted by " + requester);
-        }
-        // 处理其他消息
-    };
-
-    // 拒绝好友请求
-    function declineFriendRequest() {
-        closeDialog("friendRequestDialog");
-    }
 </script>
 </body>
 </html>

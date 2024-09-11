@@ -6,6 +6,8 @@ import org.example.zxlt_system.model.User;
 import jakarta.websocket.*;
 import jakarta.websocket.server.PathParam;
 import jakarta.websocket.server.ServerEndpoint;
+import org.example.zxlt_system.service.UserService;
+import org.example.zxlt_system.service.UserServiceImpl;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -19,7 +21,7 @@ import java.util.Map;
 
 @ServerEndpoint("/chat/{userId}")
 public class ChatEndpoint {
-
+    private UserService userService = new UserServiceImpl();
     private static final Map<String, Session> userSessions = new HashMap<>();
     private static final JedisPool jedisPool = new JedisPool(new JedisPoolConfig(), "localhost", 6379); // 创建 Redis 连接池
     private final FriendRepository friendRepository = new FriendRepository();
@@ -67,7 +69,10 @@ public class ChatEndpoint {
     @OnMessage
     public void onMessage(String message, Session session, @PathParam("userId") String userId) {
         try (Jedis jedis = jedisPool.getResource()) {
-            if (message.startsWith("SEND:")) {
+            if (message.startsWith("ADD_USER:")) {
+                handleAddUser(message, userId, session);
+            }
+            else if (message.startsWith("SEND:")) {
                 handleChatMessage(message, session, userId, jedis);
             } else if (message.startsWith("ADD_FRIEND:") || message.startsWith("REMOVE_FRIEND:") ||
                     message.startsWith("ACCEPT_FRIEND:") || message.startsWith("REJECT_FRIEND:")) {
@@ -102,6 +107,34 @@ public class ChatEndpoint {
             sendErrorMessage(session, "An unexpected error occurred");
         }
     }
+
+    private void handleAddUser(String message, String userId, Session session) {
+        // 处理 ADD_USER:username:password:email 格式的消息
+        String[] parts = message.split(":", 4);
+        if (parts.length != 4) {
+            sendErrorMessage(session, "Invalid format for add user request.");
+            return;
+        }
+
+        String username = parts[1];
+        String password = parts[2];
+        String email = parts[3];
+
+        try {
+            User newUser = new User();
+            newUser.setUsername(username);
+            newUser.setPassword(password);
+            newUser.setEmail(email);
+            userRepository.addUser(newUser);
+
+            // 发送成功消息
+            session.getBasicRemote().sendText("USER_ADDED: User " + username + " added successfully.");
+        } catch (SQLException | IOException e) {
+            e.printStackTrace();
+            sendErrorMessage(session, "An error occurred while adding the user. Details: " + e.getMessage());
+        }
+    }
+
 
     private void handleChangePassword(String message, String userId, Session session) {
         String[] parts = message.split(":");

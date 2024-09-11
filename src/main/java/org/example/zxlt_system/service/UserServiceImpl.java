@@ -2,7 +2,6 @@ package org.example.zxlt_system.service;
 
 import org.example.zxlt_system.dao.UserRepository;
 import org.example.zxlt_system.model.User;
-import org.example.zxlt_system.service.UserService;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -11,9 +10,14 @@ public class UserServiceImpl implements UserService {
     private UserRepository userRepository = new UserRepository();
 
     @Override
-    public void register(User user) throws SQLException {
+    public boolean register(User user) throws SQLException {
         // 实现用户注册
+        if(userRepository.isEmailExists(user.getEmail()) || userRepository.isEmailExists(user.getEmail()))
+        {
+            return false;
+        }
         userRepository.addUser(user);
+        return true;
     }
 
     @Override
@@ -34,11 +38,6 @@ public class UserServiceImpl implements UserService {
         return userRepository.resetPassword(username, newPassword, email);
     }
 
-    @Override
-    public void addUser(User user) throws SQLException {
-        // 添加用户
-        userRepository.addUser(user);
-    }
 
     @Override
     public boolean updateUser(User user) throws SQLException {
@@ -56,5 +55,15 @@ public class UserServiceImpl implements UserService {
     public List<User> getAllUsers() throws SQLException {
         // 获取所有用户
         return userRepository.getAllUsers();
+    }
+
+    @Override
+    public boolean isUsernameExists(String username) throws SQLException {
+        return userRepository.isUsernameExists(username);
+    }
+
+    @Override
+    public boolean isEmailExists(String email) throws SQLException {
+        return userRepository.isEmailExists(email);
     }
 }

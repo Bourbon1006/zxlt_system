@@ -8,12 +8,38 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class UserRepository {
+
+
     private Connection connection;
 
     public UserRepository() {
         this.connection = DBConnection.getConnection();
     }
 
+    public boolean isUsernameExists(String username) throws SQLException {
+        String query = "select * from users where username=?";
+        try(PreparedStatement stmt = connection.prepareStatement(query)){
+            stmt.setString(1, username);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return true;
+            }
+            return false;
+        }
+    }
+
+    //判断邮箱是否已存在
+    public boolean isEmailExists (String email) throws SQLException {
+        String query = "select * from users where email = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, email);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return true;
+            }
+            return false;
+        }
+    }
     // 添加用户
     public void addUser(User user) throws SQLException {
         String query = "INSERT INTO users (username, password, email) VALUES (?, ?, ?)";

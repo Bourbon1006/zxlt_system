@@ -76,7 +76,7 @@ public class UserController extends HttpServlet {
         }
     }
 
-    private void registerUser(HttpServletRequest request, HttpServletResponse response) throws IOException, SQLException {
+    private void registerUser(HttpServletRequest request, HttpServletResponse response) throws IOException, SQLException, ServletException {
         String username = request.getParameter("username");
         String password = request.getParameter("password");
         String email = request.getParameter("email");
