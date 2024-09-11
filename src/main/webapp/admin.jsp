@@ -11,10 +11,10 @@
     <!-- 菜单栏 -->
     <div id="menu">
         <div id="menuButtons">
+            <button onclick="showAddFriendDialog()">增加用户</button>
+            <button onclick="showRemoveFriendDialog()">删除用户</button>
+            <button onclick="showFriendsDialog()">更改用户信息</button>
             <button onclick="showOnlineUsersDialog()">查看在线用户</button>
-            <button onclick="showAddFriendDialog()">添加好友</button>
-            <button onclick="showRemoveFriendDialog()">删除好友</button>
-            <button onclick="showFriendsDialog()">显示好友</button>
             <button onclick="showChangePasswordDialog()">修改密码</button> <!-- 添加修改密码按钮 -->
             <button onclick="logout()">退出登录</button> <!-- 添加退出登录按钮 -->
         </div>
@@ -91,10 +91,7 @@
     let currentUsername = sessionStorage.getItem('username');
 
     window.onload = function() {
-        initializeWebSocket();
-    };
-
-    function initializeWebSocket() {
+        // 连接到 WebSocket 服务
         socket = new WebSocket("ws://localhost:8080/chat/" + userId);
 
         socket.onopen = function() {
@@ -103,7 +100,7 @@
         };
 
         socket.onmessage = function(event) {
-            handleMessage(event.data); // 调用统一的消息处理函数
+            handleMessage(event.data);
         };
 
         socket.onclose = function() {
@@ -113,7 +110,7 @@
         socket.onerror = function(error) {
             console.error("WebSocket 错误: " + error.message);
         };
-    }
+    };
 
     function logout() {
         if (socket) {

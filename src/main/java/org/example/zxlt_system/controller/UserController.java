@@ -5,11 +5,13 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.example.zxlt_system.model.User;
 import org.example.zxlt_system.service.UserService;
 import org.example.zxlt_system.service.UserServiceImpl;
 
 import java.io.IOException;
+import java.sql.SQLException;
 
 @WebServlet({"/login", "/register", "/logout", "/forgotPassword", "/resetPassword"})
 public class UserController extends HttpServlet {
@@ -26,9 +28,15 @@ public class UserController extends HttpServlet {
                 request.getRequestDispatcher("/WEB-INF/views/login.jsp").forward(request, response);
                 break;
             case "/logout":
-                request.getSession().invalidate();
+                // 使当前会话无效，清除所有会话数据
+                HttpSession session = request.getSession(false);
+                if (session != null) {
+                    session.invalidate();
+                }
+                // 重定向到登录页面
                 response.sendRedirect(request.getContextPath() + "/login");
                 break;
+
             case "/forgotPassword":
                 request.getRequestDispatcher("/WEB-INF/views/forgotPassword.jsp").forward(request, response);
                 break;
@@ -43,10 +51,18 @@ public class UserController extends HttpServlet {
         String path = request.getServletPath();
         switch (path) {
             case "/register":
-                registerUser(request, response);
+                try {
+                    registerUser(request, response);
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
                 break;
             case "/login":
-                loginUser(request, response);
+                try {
+                    loginUser(request, response);
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
                 break;
             case "/forgotPassword":
                 forgotPassword(request, response);
@@ -60,34 +76,73 @@ public class UserController extends HttpServlet {
         }
     }
 
-    private void registerUser(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void registerUser(HttpServletRequest request, HttpServletResponse response) throws IOException, SQLException {
         String username = request.getParameter("username");
         String password = request.getParameter("password");
         String email = request.getParameter("email");
 
+        // 检查输入是否为空
+        if (username == null || username.trim().isEmpty() ||
+                password == null || password.trim().isEmpty() ||
+                email == null || email.trim().isEmpty()) {
+            request.setAttribute("errorMessage", "所有字段都是必填项！");
+            request.getRequestDispatcher("/register.jsp").forward(request, response);
+            return;
+        }
+
+        // 检查用户名或邮箱是否已存在
+        if (userService.isUsernameExists(username)) {
+            request.setAttribute("errorMessage", "用户名已存在！");
+            request.getRequestDispatcher("/register.jsp").forward(request, response);
+            return;
+        }
+
+        if (userService.isEmailExists(email)) {
+            request.setAttribute("errorMessage", "邮箱已存在！");
+            request.getRequestDispatcher("/register.jsp").forward(request, response);
+            return;
+        }
+
+        // 创建用户并注册
         User user = new User();
         user.setUsername(username);
-        user.setPassword(password);
+        user.setPassword(password);  // 你可能需要对密码进行加密
         user.setEmail(email);
 
-        userService.register(user);
-        response.sendRedirect(request.getContextPath() + "/login");
+        boolean registrationSuccessful = userService.register(user);
+        if (registrationSuccessful) {
+            response.sendRedirect(request.getContextPath() + "/login");
+        } else {
+            request.setAttribute("errorMessage", "注册失败，请重试！");
+            request.getRequestDispatcher("/register.jsp").forward(request, response);
+        }
     }
 
-    private void loginUser(HttpServletRequest request, HttpServletResponse response) throws IOException {
+
+    private void loginUser(HttpServletRequest request, HttpServletResponse response) throws IOException, SQLException {
         String username = request.getParameter("username");
         String password = request.getParameter("password");
 
         User user = userService.login(username, password);
-        response.setContentType("application/json");
+        response.setContentType("application/x-www-form-urlencoded");
+
         if (user != null) {
-            // 登录成功，返回用户 ID
-            response.getWriter().write("{\"success\": true, \"userId\": \"" + user.getId() + "\"}");
+            HttpSession session = request.getSession();
+            session.setAttribute("username", username);
+
+            // 确保 role 不为 null
+            String role = user.getRole() != null ? user.getRole() : "user"; // 默认设置为 'user'
+
+            // 返回用户 ID 和角色
+            response.getWriter().write("success=true&userId=" + user.getId() + "&role=" + role);
         } else {
-            // 登录失败
-            response.getWriter().write("{\"success\": false}");
+            response.getWriter().write("success=false");
         }
     }
+
+
+
+
 
     private void forgotPassword(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String username = request.getParameter("username");

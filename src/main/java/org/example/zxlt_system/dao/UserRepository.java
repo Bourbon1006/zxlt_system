@@ -4,6 +4,8 @@ import org.example.zxlt_system.model.User;
 import org.example.zxlt_system.util.DBConnection;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserRepository {
     private Connection connection;
@@ -12,7 +14,8 @@ public class UserRepository {
         this.connection = DBConnection.getConnection();
     }
 
-    public void saveUser(User user) throws SQLException {
+    // 添加用户
+    public void addUser(User user) throws SQLException {
         String query = "INSERT INTO users (username, password, email) VALUES (?, ?, ?)";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, user.getUsername());
@@ -22,10 +25,46 @@ public class UserRepository {
         }
     }
 
+    // 更新用户信息
+    public boolean updateUser(User user) throws SQLException {
+        String sql = "UPDATE users SET username = ?, password = ?, email = ? WHERE id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, user.getUsername());
+            statement.setString(2, user.getPassword());
+            statement.setString(3, user.getEmail());
+            statement.setInt(4, user.getId());
+            int rowsUpdated = statement.executeUpdate();
+            return rowsUpdated > 0;
+        }
+    }
+
+    // 删除用户
+    public boolean deleteUser(int userId) throws SQLException {
+        String sql = "DELETE FROM users WHERE id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, userId);
+            int rowsDeleted = statement.executeUpdate();
+            return rowsDeleted > 0;
+        }
+    }
+
+    // 获取所有用户
+    public List<User> getAllUsers() throws SQLException {
+        List<User> users = new ArrayList<>();
+        String query = "SELECT * FROM users";
+        try (PreparedStatement stmt = connection.prepareStatement(query);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                users.add(mapUserFromResultSet(rs));
+            }
+        }
+        return users;
+    }
+
     public boolean updatePassword(int userId, String newPassword) throws SQLException {
         String sql = "UPDATE users SET password = ? WHERE id = ?";
         try (
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, newPassword);
             statement.setInt(2, userId);
             int rowsUpdated = statement.executeUpdate();
@@ -33,10 +72,31 @@ public class UserRepository {
         }
     }
 
-    public User findByUsername(String username) throws SQLException {
+    public boolean isAdmin(int userId) {
+        String query = "SELECT role FROM users WHERE id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setInt(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {  // 检查是否有查询结果
+                    String role = rs.getString("role");  // 获取role字段的值
+                    if ("admin".equals(role)) {  // 比较字符串内容
+                        return true;  // 用户是管理员
+                    } else {
+                        return false;  // 用户不是管理员
+                    }
+                } else {
+                    return false;  // 如果没有查询结果，用户不是管理员
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public User findByUsername(String a) throws SQLException {
         String query = "SELECT * FROM users WHERE username = ?";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, username);
+            stmt.setString(1, a);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     User user = new User();
@@ -44,25 +104,32 @@ public class UserRepository {
                     user.setUsername(rs.getString("username"));
                     user.setPassword(rs.getString("password"));
                     user.setEmail(rs.getString("email"));
+                    user.setRole(rs.getString("role")); // 设置用户角色
                     return user;
                 }
             }
         }
         return null;
-    
     }
+
     public User findById(int userId) throws SQLException {
+        // Example: Ensure this method fetches the role along with other user details
         String query = "SELECT * FROM users WHERE id = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setInt(1, userId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapUserFromResultSet(rs);
-                }
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setInt(1, userId);
+            ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                User user = new User();
+                user.setId(resultSet.getInt("id"));
+                user.setUsername(resultSet.getString("username"));
+                user.setPassword(resultSet.getString("password"));
+                user.setRole(resultSet.getString("role")); // Ensure role is being fetched
+                return user;
             }
         }
         return null;
     }
+
 
     private User mapUserFromResultSet(ResultSet rs) throws SQLException {
         User user = new User();

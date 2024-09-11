@@ -5,18 +5,9 @@ public class User {
     private String username;
     private String password;
     private String email;
+    private String role; // 添加角色属性
 
-
-    public User() {
-
-    }
-
-    public User(Integer userId) {
-        this.id = userId;
-    }
-
-
-    // Getters and Setters
+    // Getter 和 Setter 方法
     public int getId() {
         return id;
     }
@@ -47,5 +38,13 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }

@@ -8,8 +8,8 @@ import java.sql.SQLException;
 public class ChatRecordDAO {
 
     private static final String DB_URL = "jdbc:mysql://localhost:3306/yourdatabase";
-    private static final String DB_USER = "username";
-    private static final String DB_PASSWORD = "password";
+    private static final String DB_USER = "root";
+    private static final String DB_PASSWORD = "2830446056jy";
 
     public void saveChatRecord(String message) throws SQLException {
         String sql = "INSERT INTO chat_backup (message) VALUES (?)";

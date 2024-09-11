@@ -23,6 +23,7 @@ public class ChatEndpoint {
     private static final Map<String, Session> userSessions = new HashMap<>();
     private static final JedisPool jedisPool = new JedisPool(new JedisPoolConfig(), "localhost", 6379); // 创建 Redis 连接池
     private final FriendRepository friendRepository = new FriendRepository();
+    private final UserRepository userRepository = new UserRepository();
 
     @OnOpen
     public void onOpen(Session session, @PathParam("userId") String userId) throws IOException {
@@ -172,10 +173,12 @@ public class ChatEndpoint {
 
         // 检查两者是否为好友
         int currentUserId = Integer.parseInt(userId);
-        if (!friendRepository.areFriends(currentUserId, targetUserId)) {
+        if(!userRepository.isAdmin(currentUserId) && !userRepository.isAdmin(targetUserId))
+        {
             session.getBasicRemote().sendText("ERROR: You can only send messages to your friends.");
             return;
         }
+
 
         // 格式化消息内容
         String formattedMessage = currentUsername + ":" + msg;
@@ -192,7 +195,7 @@ public class ChatEndpoint {
         }
 
         // 也把消息发送给自己，确认消息发送成功
-        session.getBasicRemote().sendText("我发送给" + targetUsername + ": " + msg);
+        //session.getBasicRemote().sendText("我发送给" + targetUsername + ": " + msg);
     }
 
 

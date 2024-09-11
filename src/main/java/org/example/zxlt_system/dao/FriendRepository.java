@@ -144,13 +144,14 @@ public class FriendRepository {
     }
 
     public boolean areFriends(int userId1, int userId2) {
-        String query = "SELECT * FROM friends WHERE (user_id = ? AND friend_id = ? AND status = 'accepted') AND (user_id = ? AND friend_id = ? AND status = 'accepted')";
+        String query = "SELECT * FROM friends WHERE ((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)) AND status = 'accepted'";
         try (
                 PreparedStatement pstmt = connection.prepareStatement(query)) {
             pstmt.setInt(1, userId1);
             pstmt.setInt(2, userId2);
             pstmt.setInt(3, userId2);
             pstmt.setInt(4, userId1);
+
             try (ResultSet rs = pstmt.executeQuery()) {
                 return rs.next();
             }

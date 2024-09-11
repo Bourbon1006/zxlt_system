@@ -5,23 +5,40 @@ document.addEventListener('DOMContentLoaded', (event) => {
         let username = document.getElementById('username').value;
         let password = document.getElementById('password').value;
 
+        // 将表单数据转换为 URL 编码格式
+        let formData = new URLSearchParams();
+        formData.append('username', username);
+        formData.append('password', password);
+
         fetch('/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: new URLSearchParams({
-                username: username,
-                password: password
-            })
+            body: formData.toString()
         })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('网络响应不是 OK');
+                }
+                return response.text(); // 获取原始文本数据
+            })
             .then(data => {
-                if (data.success) {
-                    // 存储用户 ID 与用户名并重定向到聊天页面
-                    sessionStorage.setItem('userId', data.userId);
+                // 解析 URL 编码格式的响应数据
+                let params = new URLSearchParams(data);
+                let success = params.get('success');
+                let userId = params.get('userId');
+                let role = params.get('role');
+                console.log(role);
+                if (success === 'true') {
+                    sessionStorage.setItem('userId', userId);
                     sessionStorage.setItem('username', username);
-                    window.location.href = '/chat.jsp';  // 假设聊天页面是 chat.jsp
+
+                    if (role === 'admin') {
+                        window.location.href = '/admin.jsp';
+                    } else {
+                        window.location.href = '/chat.jsp';
+                    }
                 } else {
                     const errorMessageElement = document.getElementById('error-message');
                     if (errorMessageElement) {
@@ -30,6 +47,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 }
             })
             .catch(error => {
+                console.error('发生错误:', error);
                 const errorMessageElement = document.getElementById('error-message');
                 if (errorMessageElement) {
                     errorMessageElement.textContent = '发生错误，请稍后再试。';
