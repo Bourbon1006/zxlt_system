@@ -61,6 +61,18 @@
     <button onclick="declineFriendRequest()">拒绝</button>
 </div>
 
+<!-- 修改用户信息对话框 -->
+<div id="editUserInfoDialog" class="dialog">
+    <input type="text" id="editUserId" placeholder="请输入用户 ID" />
+    <input type="text" id="editUsername" placeholder="新用户名" />
+    <input type="email" id="editEmail" placeholder="新邮箱" />
+    <input type="password" id="editPassword" placeholder="新密码（可选）" />
+    <button onclick="updateUserInfo()">提交</button>
+    <button onclick="closeDialog('editUserInfoDialog')">关闭</button>
+</div>
+
+
+
 <!-- 显示好友的对话框 -->
 <div id="friendsDialog" class="dialog">
     <h2>好友列表</h2>
@@ -120,6 +132,38 @@
     function showDialog(dialogId) {
         document.getElementById(dialogId).classList.add("show");
     }
+
+    // 显示更改用户信息的对话框
+    function showFriendsDialog() {
+        document.getElementById("editUserInfoDialog").classList.add("show");
+    }
+
+    // 处理更新用户信息的逻辑
+    function updateUserInfo() {
+        let userId = document.getElementById("editUserId").value.trim();
+        let newUsername = document.getElementById("editUsername").value.trim();
+        let newEmail = document.getElementById("editEmail").value.trim();
+        let newPassword = document.getElementById("editPassword").value.trim();
+
+        if (userId && newUsername !== "" && newEmail !== "") {
+            // 构建更新信息的消息格式
+            let updateMessage = "UPDATE_USER:" + userId + ":" + newUsername + ":" + newEmail;
+
+            // 可选的密码字段
+            if (newPassword !== "") {
+                updateMessage += ":" + newPassword;
+            }
+
+            // 通过 WebSocket 发送更新请求
+            socket.send(updateMessage);
+
+            // 关闭对话框
+            closeDialog('editUserInfoDialog');
+        } else {
+            alert("用户 ID、用户名和邮箱不能为空");
+        }
+    }
+
 
     // 关闭对话框
     function closeDialog(dialogId) {
@@ -244,25 +288,6 @@
     function changePassword() {
 
     }
-
-
-    // 显示好友列表的对话框
-    function showFriendsDialog() {
-        document.getElementById("friendsDialog").classList.add("show");
-        fetchFriendsList(); // 获取好友列表
-    }
-
-
-    // 获取好友列表
-    function fetchFriendsList() {
-
-    }
-
-    // 更新好友列表
-    function updateFriendsList(friends) {
-
-    }
-
 
     // 获取聊天记录
     function fetchChatHistory() {

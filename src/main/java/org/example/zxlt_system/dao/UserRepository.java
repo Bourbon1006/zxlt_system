@@ -238,6 +238,28 @@ public class UserRepository {
         return false;
     }
 
+    public void update(User user) {
+        String sql = "UPDATE users SET username = ?, email = ?, password = ?, role = ? WHERE id = ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, user.getUsername());
+            stmt.setString(2, user.getEmail());
+            stmt.setString(3, user.getPassword()); // 确保密码是加密后的
+            stmt.setString(4, user.getRole());
+            stmt.setInt(5, user.getId());
+
+            int rowsUpdated = stmt.executeUpdate();
+            if (rowsUpdated == 0) {
+                System.out.println("No user found with ID: " + user.getId());
+            } else {
+                System.out.println("User updated successfully.");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("Error updating user: " + e.getMessage());
+        }
+    }
+
 
     // 关闭数据库连接
     public void close() {
@@ -249,6 +271,4 @@ public class UserRepository {
             }
         }
     }
-
-
 }

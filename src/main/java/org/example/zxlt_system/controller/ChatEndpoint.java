@@ -155,6 +155,9 @@ public class ChatEndpoint {
                     String systemMessage = message.substring(7);
                     jedis.publish("systemChannel", systemMessage);
                     break;
+                case "UPDATE_USER":
+                    handleUpdateUser(userId,message, session);
+                    break;
 
                 default:
                     session.getBasicRemote().sendText("ERROR: Unknown message type");
@@ -168,6 +171,58 @@ public class ChatEndpoint {
             sendErrorMessage(session, "An unexpected error occurred");
         }
     }
+
+    private void handleUpdateUser(String userId, String message, Session session) {
+        try {
+            // 从消息中解析出用户信息
+            String[] parts = message.split(":");
+            if (parts.length < 3) {
+                session.getBasicRemote().sendText("ERROR: Invalid update user message format");
+                return;
+            }
+
+            String userid = parts[1].trim();
+            String newUsername = parts[2].trim();
+            String newEmail = parts[3].trim();
+            String newPassword = (parts.length > 4) ? parts[4].trim() : null;
+
+            // 根据 userId 查找用户
+            User user = userRepository.findById(Integer.parseInt(userid));
+            if (user != null) {
+                // 更新用户信息
+                user.setUsername(newUsername);
+                user.setEmail(newEmail);
+                if (newPassword != null && !newPassword.isEmpty()) {
+                    user.setPassword(newPassword);
+                }
+
+                // 更新数据库
+                userRepository.update(user);
+
+                // 向客户端发送成功消息
+                session.getBasicRemote().sendText("UPDATE_USER_SUCCESS: User info updated successfully");
+            } else {
+                session.getBasicRemote().sendText("ERROR: User not found");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            try {
+                session.getBasicRemote().sendText("ERROR: Failed to update user info.");
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
+            }
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+            try {
+                session.getBasicRemote().sendText("ERROR: Invalid user ID format.");
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 
     public void handleRemUser(String message, String userId, Session session) {
         String[] parts = message.split(":",2);
