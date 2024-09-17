@@ -27,15 +27,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public boolean findByUsernameAndEmail(String username, String email) {
-        // 验证用户名和电子邮件
-        return userRepository.isUsernameAndEmailValid(username, email);
+    public String findByUsernameAndEmail(String username, String email) {
+        // 获取用户角色
+        String role = userRepository.isUsernameAndEmailValid(username, email);
+        return role; // 返回角色，如果是 null，说明用户不存在
     }
 
+
     @Override
-    public boolean resetPassword(String username, String email, String newPassword) {
+    public boolean resetPassword(String username,  String newPassword,String email) {
         // 重置密码
-        return userRepository.resetPassword(username, newPassword, email);
+        return userRepository.resetPassword(username, email ,newPassword);
     }
 
 

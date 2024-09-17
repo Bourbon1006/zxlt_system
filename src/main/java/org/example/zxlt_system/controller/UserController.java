@@ -148,15 +148,19 @@ public class UserController extends HttpServlet {
         String username = request.getParameter("username");
         String email = request.getParameter("email");
 
-        boolean userExists = userService.findByUsernameAndEmail(username, email);
-        response.setContentType("application/json");
+        // 调用 findByUsernameAndEmail，返回用户角色或 null
+        String role = userService.findByUsernameAndEmail(username, email);
 
-        if (userExists) {
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+
+        if (role != null) {
             response.getWriter().write("{\"success\": true, \"message\": \"重置链接已发送到您的电子邮件。\"}");
         } else {
             response.getWriter().write("{\"success\": false, \"message\": \"用户名和电子邮件不匹配。\"}");
         }
     }
+
 
     private void resetPassword(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String username = request.getParameter("username");

@@ -191,37 +191,53 @@ public class UserRepository {
         return user;
     }
 
-    public boolean isUsernameAndEmailValid(String username, String email) {
-        String query = "SELECT COUNT(*) FROM users WHERE username = ? AND email = ?";
-        try (
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+    public String isUsernameAndEmailValid(String username, String email) {
+        String query = "SELECT role FROM users WHERE username = ? AND email = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, username);
             stmt.setString(2, email);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                return rs.getInt(1) > 0;
+                // 返回用户的角色
+                return rs.getString("role");
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null; // 用户名和邮箱无效，返回 null
+    }
+
+
+    public boolean resetPassword(String username,  String email,String newPassword) {
+        // 调用 isUsernameAndEmailValid 获取角色
+        String role = isUsernameAndEmailValid(username, email);
+
+        // 如果用户名和邮箱无效，返回 false
+        if (role == null) {
+            System.out.println("Invalid username or email.");
+            return false;
+        }
+
+        // 如果角色不是 admin，拒绝重置密码
+        if ("admin".equals(role)) {
+            System.out.println("Only admin users can reset passwords.");
+            return false;
+        }
+
+        // 如果是管理员，允许重置密码
+        String updateQuery = "UPDATE users SET password = ? WHERE username = ? AND email = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(updateQuery)) {
+            stmt.setString(1, newPassword);
+            stmt.setString(2, username);
+            stmt.setString(3, email);
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return false;
     }
 
-    public boolean resetPassword(String username, String newPassword, String email) {
-        if (isUsernameAndEmailValid(username, email)) {
-            String updateQuery = "UPDATE users SET password = ? WHERE username = ? AND email = ?";
-            try (PreparedStatement stmt = connection.prepareStatement(updateQuery)) {
-                stmt.setString(1, newPassword);
-                stmt.setString(2, username);
-                stmt.setString(3, email);
-                int rowsAffected = stmt.executeUpdate();
-                return rowsAffected > 0;
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-        return false;
-    }
 
     // 关闭数据库连接
     public void close() {

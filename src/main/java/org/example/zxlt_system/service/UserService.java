@@ -8,7 +8,7 @@ import java.util.List;
 public interface UserService {
     boolean register(User user) throws SQLException;
     User login(String username, String password) throws SQLException;  // 修改为返回 User 对象
-    boolean findByUsernameAndEmail(String username, String email);
+    String findByUsernameAndEmail(String username, String email);
     boolean resetPassword(String username, String email, String newPassword);
     boolean updateUser(User user) throws SQLException;
     boolean deleteUser(String username) throws SQLException;
