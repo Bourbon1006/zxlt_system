@@ -124,7 +124,7 @@ public class UserController extends HttpServlet {
         String password = request.getParameter("password");
 
         User user = userService.login(username, password);
-        response.setContentType("application/x-www-form-urlencoded");
+        response.setContentType("application/json");
 
         if (user != null) {
             HttpSession session = request.getSession();

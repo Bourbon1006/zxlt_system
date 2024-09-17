@@ -13,11 +13,12 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.SQLException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @ServerEndpoint("/chat/{userId}")
 public class ChatEndpoint {
@@ -69,35 +70,95 @@ public class ChatEndpoint {
     @OnMessage
     public void onMessage(String message, Session session, @PathParam("userId") String userId) {
         try (Jedis jedis = jedisPool.getResource()) {
-            if (message.startsWith("ADD_USER:")) {
-                handleAddUser(message, userId, session);
-            }
-            else if (message.startsWith("SEND:")) {
-                handleChatMessage(message, session, userId, jedis);
-            } else if (message.startsWith("ADD_FRIEND:") || message.startsWith("REMOVE_FRIEND:") ||
-                    message.startsWith("ACCEPT_FRIEND:") || message.startsWith("REJECT_FRIEND:")) {
-                handleFriendMessage(message, userId, session);
-            } else if ("GET_USERS".equals(message)) {
-                broadcastOnlineUsers();
-            } else if ("GET_HISTORY".equals(message)) {
-                // 处理获取聊天记录的请求
-                List<String> chatRecords = jedis.lrange("chatRecords", 0, -1);
-                StringBuilder history = new StringBuilder("CHAT_HISTORY:");
-                for (String record : chatRecords) {
-                    history.append(record).append("\n");
-                }
-                session.getBasicRemote().sendText(history.toString());
-            } else if (message.startsWith("GET_FRIENDS")) {
-                List<String> friendsList = Collections.singletonList(FriendRepository.getFriendsList(Integer.parseInt(userId)));
-                String friendsString = String.join(",", friendsList);
-                session.getBasicRemote().sendText("FRIENDS_LIST:" + friendsString);
-            } else if (message.startsWith("CHANGE_PASSWORD:")) {
-                handleChangePassword(message, userId, session);
-            } else if (message.startsWith("SYSTEM:")) {
-                String systemMessage = message.substring(7);
-                jedis.publish("systemChannel", systemMessage);
-            } else {
-                session.getBasicRemote().sendText("ERROR: Unknown message type");
+            // 获取消息的类型前缀，例如 "ADD_USER", "SEND" 等
+            String prefix = message.split(":")[0];
+
+            switch (prefix) {
+                case "REMOVE_USER":
+                    handleRemUser(message, userId, session);
+                    break;
+
+                case "ADD_USER":
+                    handleAddUser(message, userId, session);
+                    break;
+
+                case "SEND":
+                    handleChatMessage(message, session, userId, jedis);
+                    break;
+
+                case "ADD_FRIEND":
+                case "REMOVE_FRIEND":
+                case "ACCEPT_FRIEND":
+                case "REJECT_FRIEND":
+                    handleFriendMessage(message, userId, session);
+                    break;
+
+                case "GET_USERS":
+                    if ("GET_USERS".equals(message)) {
+                        broadcastOnlineUsers();
+                    }
+                    break;
+
+                case "GET_HISTORY":
+                    try  {
+                        // 获取当前用户的角色
+                        UserRepository userRepository = new UserRepository();
+                        FriendRepository friendRepository = new FriendRepository();
+
+                        User currentUser = userRepository.findById(Integer.parseInt(userId));
+                        String role = currentUser != null ? currentUser.getRole() : "user"; // 默认为普通用户
+
+                        List<String> chatRecords = jedis.lrange("chatRecords", 0, -1);
+                        StringBuilder history = new StringBuilder("CHAT_HISTORY:");
+
+                        if ("admin".equals(role)) {
+                            // 如果是管理员，显示所有聊天记录
+                            for (String record : chatRecords) {
+                                history.append(record).append("\n");
+                            }
+                        } else {
+                            // 普通用户，筛选与好友的聊天记录
+                            for (String record : chatRecords) {
+                                // 假设聊天记录的格式是 "用户名: 消息内容"
+                                String senderUsername = record.split(":")[0];
+
+                                // 获取发送者的 userId
+                                int senderId = userRepository.findByUsername(senderUsername).getId();
+
+                                // 如果发送者是自己或者是好友，显示该记录
+                                if (userRepository.isAdmin(senderId)||senderId == Integer.parseInt(userId) || friendRepository.areFriends(senderId, Integer.parseInt(userId))) {
+                                    history.append(record).append("\n");
+                                }
+                            }
+                        }
+
+                        session.getBasicRemote().sendText(history.toString());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        session.getBasicRemote().sendText("ERROR: Failed to retrieve chat history.");
+                    }
+                    break;
+
+                case "GET_FRIENDS":
+                    if (message.startsWith("GET_FRIENDS")) {
+                        List<String> friendsList = Collections.singletonList(FriendRepository.getFriendsList(Integer.parseInt(userId)));
+                        String friendsString = String.join(",", friendsList);
+                        session.getBasicRemote().sendText("FRIENDS_LIST:" + friendsString);
+                    }
+                    break;
+
+                case "CHANGE_PASSWORD":
+                    handleChangePassword(message, userId, session);
+                    break;
+
+                case "SYSTEM":
+                    String systemMessage = message.substring(7);
+                    jedis.publish("systemChannel", systemMessage);
+                    break;
+
+                default:
+                    session.getBasicRemote().sendText("ERROR: Unknown message type");
+                    break;
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -108,6 +169,26 @@ public class ChatEndpoint {
         }
     }
 
+    public void handleRemUser(String message, String userId, Session session) {
+        String[] parts = message.split(":",2);
+        if(parts.length != 2)
+        {
+            sendErrorMessage(session, "Invalid format for remove user request.");
+            return;
+        }
+        String username = parts[1];
+        try{
+            if(userRepository.deleteUser(username))
+            {
+                session.getBasicRemote().sendText("USER_REMOVE: User " + username + " removed successfully.");
+
+            }
+            } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
     private void handleAddUser(String message, String userId, Session session) {
         // 处理 ADD_USER:username:password:email 格式的消息
         String[] parts = message.split(":", 4);
@@ -176,14 +257,16 @@ public class ChatEndpoint {
     }
 
     private void handleChatMessage(String message, Session session, String userId, Jedis jedis) throws IOException, SQLException {
-        String[] parts = message.split(":", 3);
-        if (parts.length < 3) {
+        String[] parts = message.split(":", 4);
+        if (parts.length < 4) {
             session.getBasicRemote().sendText("ERROR: Invalid message format");
             return;
         }
 
-        String targetUsername = parts[1];
-        String msg = parts[2];
+        // 判断消息类型
+        String messageType = parts[1];
+        String targetUsername = parts[2];
+        String msg = parts[3];
 
         // 从 Redis 获取当前用户名
         String currentUsername = jedis.hget("userIdToUsername", userId);
@@ -206,30 +289,50 @@ public class ChatEndpoint {
 
         // 检查两者是否为好友
         int currentUserId = Integer.parseInt(userId);
-        if(!userRepository.isAdmin(currentUserId) && !userRepository.isAdmin(targetUserId))
-        {
+        if(!userRepository.isAdmin(currentUserId) && !friendRepository.areFriends(targetUserId,currentUserId)) {
             session.getBasicRemote().sendText("ERROR: You can only send messages to your friends.");
             return;
         }
 
+        // 处理文件消息
+        if ("FILE".equals(messageType)) {
+            // 假设 msg 包含文件的二进制数据
+            byte[] fileData = msg.getBytes(); // 实际情况下可能需要其他方式来处理文件数据
 
-        // 格式化消息内容
-        String formattedMessage = currentUsername + ":" + msg;
+            // 保存文件到服务器
+            String fileName = "uploaded_file_" + currentUsername + ".bin";
+            Path filePath = Paths.get("C:/Users/administrator/Desktop/zxlt_system/src/main/uploads/" + fileName);
+            Files.write(filePath, fileData);
 
-        // 将消息存储到 Redis
-        jedis.rpush("chatRecords", formattedMessage);
+            Session targetSession = userSessions.get(String.valueOf(targetUserId));
+            if (targetSession != null && targetSession.isOpen()) {
+                targetSession.getBasicRemote().sendText(Arrays.toString(fileData));
+            } else {
+                session.getBasicRemote().sendText("ERROR: Target user is not online.");
+            }
 
-        // 发送消息给目标用户
-        Session targetSession = userSessions.get(String.valueOf(targetUserId));
-        if (targetSession != null && targetSession.isOpen()) {
-            targetSession.getBasicRemote().sendText(formattedMessage);
+            // 发送文件接收成功的消息
+            session.getBasicRemote().sendText("FILE_RECEIVED: " + fileName);
         } else {
-            session.getBasicRemote().sendText("ERROR: Target user is not online.");
-        }
+            // 格式化文本消息内容
+            String formattedMessage = currentUsername + ": " + msg;
 
-        // 也把消息发送给自己，确认消息发送成功
-        //session.getBasicRemote().sendText("我发送给" + targetUsername + ": " + msg);
+            // 将消息存储到 Redis
+            jedis.rpush("chatRecords", formattedMessage);
+
+            // 发送消息给目标用户
+            Session targetSession = userSessions.get(String.valueOf(targetUserId));
+            if (targetSession != null && targetSession.isOpen()) {
+                targetSession.getBasicRemote().sendText(formattedMessage);
+            } else {
+                session.getBasicRemote().sendText("ERROR: Target user is not online.");
+            }
+
+            // 也把消息发送给自己，确认消息发送成功
+            //session.getBasicRemote().sendText("我发送给" + targetUsername + ": " + msg);
+        }
     }
+
 
 
     private void handleFriendMessage(String message, String userId, Session session) {

@@ -11,7 +11,7 @@ public interface UserService {
     boolean findByUsernameAndEmail(String username, String email);
     boolean resetPassword(String username, String email, String newPassword);
     boolean updateUser(User user) throws SQLException;
-    boolean deleteUser(int userId) throws SQLException;
+    boolean deleteUser(String username) throws SQLException;
     List<User> getAllUsers() throws SQLException;
     boolean isUsernameExists(String username) throws SQLException;
     boolean isEmailExists(String email) throws SQLException;

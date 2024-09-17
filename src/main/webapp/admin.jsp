@@ -12,7 +12,7 @@
     <div id="menu">
         <div id="menuButtons">
             <button onclick="showAddUserDialog()">增加用户</button>
-            <button onclick="showRemoveFriendDialog()">删除用户</button>
+            <button onclick="showRemoveUserDialog()">删除用户</button>
             <button onclick="showFriendsDialog()">更改用户信息</button>
             <button onclick="showOnlineUsersDialog()">查看在线用户</button>
             <button onclick="showChangePasswordDialog()">修改密码</button> <!-- 添加修改密码按钮 -->
@@ -47,11 +47,11 @@
 </div>
 
 <!-- 删除好友的对话框 -->
-<div id="removeFriendDialog" class="dialog">
-    <label for="removeFriendName">好友用户名:</label>
-    <input type="text" id="removeFriendName">
-    <button onclick="removeFriend()">确认删除</button>
-    <button onclick="closeDialog('removeFriendDialog')">取消</button>
+<div id="removeUserDialog" class="dialog">
+    <label for="removeUserName">用户名:</label>
+    <input type="text" id="removeUserName">
+    <button onclick="removeUser()">确认删除</button>
+    <button onclick="closeDialog('removeUserDialog')">取消</button>
 </div>
 
 <!-- 好友请求的对话框 -->
@@ -128,27 +128,46 @@
 
     // 处理收到的消息
     function handleMessage(message) {
-        if(message.startsWith("ADD_USER:")) {
-            addUsers(message.substring(9));
-        }
-        else if (message.startsWith("ONLINE_USERS:")) {
-            updateOnlineUsers(message.substring(13));
-        } else if (message.startsWith("CHAT_HISTORY:")) {
-            displayChatHistory(message.substring(13));
-        } else if (message.startsWith("FRIEND_REQUEST:")) {
-            let requester = message.substring(15);
-            openFriendRequestDialog(requester);
-        } else if (message.startsWith("FRIENDS_LIST:")) {
-            let friends = message.substring(13);
-            displayFriendsList(friends);
-        } else if (message.startsWith("ADD_FRIEND") ||
-            message.startsWith("ACCEPT_FRIEND") ||
-            message.startsWith("REJECT_FRIEND")) {
-            alert(message);
-        } else {
-            displayChatMessage(message);
+        const prefix = message.split(":")[0];  // 获取消息前缀
+        const content = message.substring(prefix.length + 1);  // 获取消息内容
+
+        switch (prefix) {
+            case "REMOVE_USER":
+                removeUser(content);
+                break;
+
+            case "ADD_USER":
+                addUsers(content);
+                break;
+
+            case "ONLINE_USERS":
+                updateOnlineUsers(content);
+                break;
+
+            case "CHAT_HISTORY":
+                displayChatHistory(content);
+                break;
+
+            case "FRIEND_REQUEST":
+                openFriendRequestDialog(content);
+                break;
+
+            case "FRIENDS_LIST":
+                displayFriendsList(content);
+                break;
+
+            case "ADD_FRIEND":
+            case "ACCEPT_FRIEND":
+            case "REJECT_FRIEND":
+                alert(message);
+                break;
+
+            default:
+                displayChatMessage(message);
+                break;
         }
     }
+
 
 
     // 显示聊天消息
@@ -216,24 +235,6 @@
     }
 
 
-    // 发送聊天消息
-    function sendMessage() {
-        let message = document.getElementById("chatInput").value;
-        let targetUser = document.getElementById("targetUser").value; // 获取目标用户或群组的名称
-
-        if (message.trim() !== "") {
-            if (targetUser.trim() === "") {
-                // 如果目标用户为空，则发送给所有用户
-                socket.send("SEND:所有用户:" + message);
-            } else {
-                // 否则，发送给指定的用户
-                socket.send("SEND:" + targetUser + ":" + message);
-            }
-            document.getElementById("chatInput").value = "";
-            document.getElementById("targetUser").value = ""; // 清空目标用户输入框
-        }
-    }
-
     // 显示修改密码的对话框
     function showChangePasswordDialog() {
         document.getElementById("changePasswordDialog").classList.add("show");
@@ -274,8 +275,81 @@
     }
 
     // 显示删除好友的对话框
-    function showRemoveFriendDialog() {
-        document.getElementById("removeFriendDialog").classList.add("show");
+    function showRemoveUserDialog() {
+        document.getElementById("removeUserDialog").classList.add("show");
+    }
+
+    function sendFile() {
+        let fileInput = document.getElementById("fileInput");
+        let file = fileInput.files[0];
+        let targetUsername = document.getElementById("targetUser").value;
+
+        if (file && targetUsername) {
+            let reader = new FileReader();
+
+            reader.onload = function(event) {
+                let fileData = new Uint8Array(event.target.result);
+                let base64FileData = btoa(String.fromCharCode.apply(null, fileData));
+                let message = "FILE:" +  targetUsername + ":" + file.name + ":" + base64FileData;
+                socket.send(message);
+            };
+
+            reader.readAsArrayBuffer(file); // 读取文件内容
+        }
+    }
+
+    function sendMessage() {
+        let message = document.getElementById("chatInput").value;
+        let targetUser = document.getElementById("targetUser").value.trim(); // 获取目标用户或群组的名称
+        let maxSize = 5 * 1024 * 1024; // 最大文件大小为 5 MB
+
+        if (message.trim() !== "") {
+            if (targetUser === "") {
+                // 如果目标用户为空，则发送给所有用户
+                socket.send("SEND:" + "TEXT:所有用户:" + message);
+            } else {
+                // 否则，发送给指定的用户
+                socket.send("SEND:" + "TEXT:" + targetUser + ":" + message);
+            }
+            document.getElementById("chatInput").value = "";
+            document.getElementById("targetUser").value = ""; // 清空目标用户输入框
+        }
+
+        // 处理文件上传
+        let fileInput = document.getElementById("fileInput"); // 获取文件输入框的引用
+        let file = fileInput.files[0]; // 获取第一个选择的文件
+        if (file) {
+            // 检查文件大小
+            if (file.size > maxSize) {
+                alert("文件太大，最大允许上传大小为 5 MB");
+                return; // 文件太大时阻止上传
+            }
+
+            let reader = new FileReader();
+
+            reader.onload = function(event) {
+                let binary = '';
+                let bytes = new Uint8Array(event.target.result);
+                let len = bytes.byteLength;
+
+                for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+
+                let base64FileData = btoa(binary);
+
+                // 使用最新的 targetUser 值
+                let currentTargetUser = targetUser !== "" ? targetUser : "所有用户";
+                let fileMessage = "SEND:" + "FILE:" + currentTargetUser + ":" + file.name + ":" + base64FileData;
+
+                socket.send(fileMessage);
+
+                // 清空文件输入框
+                fileInput.value = "";
+            };
+
+            reader.readAsArrayBuffer(file); // 读取文件内容
+        }
     }
 
 
@@ -291,8 +365,13 @@
     }
 
     // 删除好友
-    function removeFriend() {
-
+    function removeUser() {
+        let username = document.getElementById("removeUserName").value;
+        if(username.trim() !== null)
+        {
+            socket.send("REMOVE_USER:" + username);
+            closeDialog("removeUserDialog");
+        }
     }
 
     // 显示在线用户的对话框

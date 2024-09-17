@@ -65,10 +65,10 @@ public class UserRepository {
     }
 
     // 删除用户
-    public boolean deleteUser(int userId) throws SQLException {
-        String sql = "DELETE FROM users WHERE id = ?";
+    public boolean deleteUser(String username) throws SQLException {
+        String sql = "DELETE FROM users WHERE username = ?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, userId);
+            statement.setString(1, username);
             int rowsDeleted = statement.executeUpdate();
             return rowsDeleted > 0;
         }
@@ -117,6 +117,31 @@ public class UserRepository {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public User login(String username, String password) throws SQLException {
+        String query = "SELECT * FROM users WHERE username = ? AND password = ?";
+        User user = null;
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, username);
+            stmt.setString(2, password);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    user = new User();
+                    user.setId(rs.getInt("id"));
+                    user.setUsername(rs.getString("username"));
+                    user.setPassword(rs.getString("password"));
+                    user.setEmail(rs.getString("email"));
+                    user.setRole(rs.getString("role"));
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Database error occurred", e);
+        }
+
+        return user;
     }
 
     public User findByUsername(String a) throws SQLException {

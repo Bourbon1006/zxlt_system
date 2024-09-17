@@ -20,15 +20,19 @@
         </div>
     </div>
 
-    <!-- 主内容区域 -->
     <div id="mainContent">
         <!-- 聊天窗口 -->
         <div id="chatWindow" class="view">
             <h2>聊天窗口</h2>
             <div id="chatMessages"></div>
+
+            <!-- 输入框 -->
             <input type="text" id="chatInput" placeholder="输入消息...">
             <input type="text" id="targetUser" placeholder="输入接收者用户名..."> <!-- 添加目标用户输入框 -->
-            <button onclick="sendMessage()">发送</button> <!-- 添加发送按钮 -->
+
+            <!-- 发送按钮 -->
+            <button onclick="sendMessage()">发送</button>
+            <input type="file" id="fileInput">
         </div>
         <!-- 其他视图可以以类似方式添加 -->
     </div>
@@ -95,7 +99,7 @@
     };
 
     function initializeWebSocket() {
-        socket = new WebSocket("ws://localhost:8080/chat/" + userId);
+        socket = new WebSocket("ws://127.0.0.1:8080/chat/" + userId);
 
         socket.onopen = function() {
             console.log("WebSocket 连接已打开");
@@ -114,6 +118,27 @@
             console.error("WebSocket 错误: " + error.message);
         };
     }
+
+
+    function sendFile() {
+        let fileInput = document.getElementById("fileInput");
+        let file = fileInput.files[0];
+        let targetUsername = document.getElementById("targetUser").value;
+
+        if (file && targetUsername) {
+            let reader = new FileReader();
+
+            reader.onload = function(event) {
+                let fileData = new Uint8Array(event.target.result);
+                let base64FileData = btoa(String.fromCharCode.apply(null, fileData));
+                let message = "FILE:" +  targetUsername + ":" + file.name + ":" + base64FileData;
+                socket.send(message);
+            };
+
+            reader.readAsArrayBuffer(file); // 读取文件内容
+        }
+    }
+
 
     function logout() {
         if (socket) {
@@ -157,23 +182,61 @@
     }
 
 
-    // 发送聊天消息
     function sendMessage() {
         let message = document.getElementById("chatInput").value;
-        let targetUser = document.getElementById("targetUser").value; // 获取目标用户或群组的名称
+        let targetUser = document.getElementById("targetUser").value.trim(); // 获取目标用户或群组的名称
+        let maxSize = 5 * 1024 * 1024; // 最大文件大小为 5 MB
 
         if (message.trim() !== "") {
-            if (targetUser.trim() === "") {
+            if (targetUser === "") {
                 // 如果目标用户为空，则发送给所有用户
-                socket.send("SEND:所有用户:" + message);
+                socket.send("SEND:" + "TEXT:所有用户:" + message);
             } else {
                 // 否则，发送给指定的用户
-                socket.send("SEND:" + targetUser + ":" + message);
+                socket.send("SEND:" + "TEXT:" + targetUser + ":" + message);
             }
             document.getElementById("chatInput").value = "";
             document.getElementById("targetUser").value = ""; // 清空目标用户输入框
         }
+
+        // 处理文件上传
+        let fileInput = document.getElementById("fileInput"); // 获取文件输入框的引用
+        let file = fileInput.files[0]; // 获取第一个选择的文件
+        if (file) {
+            // 检查文件大小
+            if (file.size > maxSize) {
+                alert("文件太大，最大允许上传大小为 5 MB");
+                return; // 文件太大时阻止上传
+            }
+
+            let reader = new FileReader();
+
+            reader.onload = function(event) {
+                let binary = '';
+                let bytes = new Uint8Array(event.target.result);
+                let len = bytes.byteLength;
+
+                for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+
+                let base64FileData = btoa(binary);
+
+                // 使用最新的 targetUser 值
+                let currentTargetUser = targetUser !== "" ? targetUser : "所有用户";
+                let fileMessage = "SEND:" + "FILE:" + currentTargetUser + ":" + file.name + ":" + base64FileData;
+
+                socket.send(fileMessage);
+
+                // 清空文件输入框
+                fileInput.value = "";
+            };
+
+            reader.readAsArrayBuffer(file); // 读取文件内容
+        }
     }
+
+
 
     // 处理接收到的消息
     function handleMessage(message) {

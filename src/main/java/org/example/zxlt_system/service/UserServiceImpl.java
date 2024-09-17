@@ -23,7 +23,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public User login(String username, String password) throws SQLException {
         // 实现用户登录
-        return userRepository.findByUsername(username);
+        return userRepository.login(username,password);
     }
 
     @Override
@@ -46,9 +46,9 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public boolean deleteUser(int userId) throws SQLException {
+    public boolean deleteUser(String username) throws SQLException {
         // 删除用户
-        return userRepository.deleteUser(userId);
+        return userRepository.deleteUser(username);
     }
 
     @Override
