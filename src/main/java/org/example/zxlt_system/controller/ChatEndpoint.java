@@ -1,5 +1,6 @@
 package org.example.zxlt_system.controller;
 
+import org.example.zxlt_system.dao.ChatRepository;
 import org.example.zxlt_system.dao.FriendRepository;
 import org.example.zxlt_system.dao.UserRepository;
 import org.example.zxlt_system.model.User;
@@ -13,7 +14,6 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,7 +27,7 @@ public class ChatEndpoint {
     private static final JedisPool jedisPool = new JedisPool(new JedisPoolConfig(), "localhost", 6379); // 创建 Redis 连接池
     private final FriendRepository friendRepository = new FriendRepository();
     private final UserRepository userRepository = new UserRepository();
-
+    private final ChatRepository chatRepository = new ChatRepository();
     @OnOpen
     public void onOpen(Session session, @PathParam("userId") String userId) throws IOException {
         userSessions.put(userId, session);  // 先将用户加入会话列表
@@ -100,15 +100,11 @@ public class ChatEndpoint {
                     break;
 
                 case "GET_HISTORY":
-                    try  {
-                        // 获取当前用户的角色
-                        UserRepository userRepository = new UserRepository();
-                        FriendRepository friendRepository = new FriendRepository();
-
+                    try {
                         User currentUser = userRepository.findById(Integer.parseInt(userId));
                         String role = currentUser != null ? currentUser.getRole() : "user"; // 默认为普通用户
 
-                        List<String> chatRecords = jedis.lrange("chatRecords", 0, -1);
+                        List<String> chatRecords = chatRepository.getChatRecords(Integer.parseInt(userId));
                         StringBuilder history = new StringBuilder("CHAT_HISTORY:");
 
                         if ("admin".equals(role)) {
@@ -119,16 +115,8 @@ public class ChatEndpoint {
                         } else {
                             // 普通用户，筛选与好友的聊天记录
                             for (String record : chatRecords) {
-                                // 假设聊天记录的格式是 "用户名: 消息内容"
-                                String senderUsername = record.split(":")[0];
 
-                                // 获取发送者的 userId
-                                int senderId = userRepository.findByUsername(senderUsername).getId();
-
-                                // 如果发送者是自己或者是好友，显示该记录
-                                if (userRepository.isAdmin(senderId)||senderId == Integer.parseInt(userId) || friendRepository.areFriends(senderId, Integer.parseInt(userId))) {
-                                    history.append(record).append("\n");
-                                }
+                                history.append(record).append("\n");
                             }
                         }
 
@@ -138,6 +126,7 @@ public class ChatEndpoint {
                         session.getBasicRemote().sendText("ERROR: Failed to retrieve chat history.");
                     }
                     break;
+
 
                 case "GET_FRIENDS":
                     if (message.startsWith("GET_FRIENDS")) {
@@ -344,36 +333,42 @@ public class ChatEndpoint {
 
         // 检查两者是否为好友
         int currentUserId = Integer.parseInt(userId);
-        if(!userRepository.isAdmin(currentUserId) && !friendRepository.areFriends(targetUserId,currentUserId)) {
+        if (!userRepository.isAdmin(currentUserId) && !friendRepository.areFriends(targetUserId, currentUserId)) {
             session.getBasicRemote().sendText("ERROR: You can only send messages to your friends.");
             return;
         }
 
+
+
         // 处理文件消息
         if ("FILE".equals(messageType)) {
-            // 假设 msg 包含文件的二进制数据
-            byte[] fileData = msg.getBytes(); // 实际情况下可能需要其他方式来处理文件数据
+            // 假设 msg 包含文件的二进制数据，实际情况可能需要处理为 Base64 编码的字符串
+            byte[] fileData = Base64.getDecoder().decode(msg);
 
             // 保存文件到服务器
             String fileName = "uploaded_file_" + currentUsername + ".bin";
             Path filePath = Paths.get("C:/Users/administrator/Desktop/zxlt_system/src/main/uploads/" + fileName);
             Files.write(filePath, fileData);
 
+            // 发送文件接收成功的消息
+            session.getBasicRemote().sendText("FILE_RECEIVED: " + fileName);
+
+            // 发送文件给目标用户
             Session targetSession = userSessions.get(String.valueOf(targetUserId));
             if (targetSession != null && targetSession.isOpen()) {
-                targetSession.getBasicRemote().sendText(Arrays.toString(fileData));
+                targetSession.getBasicRemote().sendText("FILE_RECEIVED: " + fileName);
             } else {
                 session.getBasicRemote().sendText("ERROR: Target user is not online.");
             }
 
-            // 发送文件接收成功的消息
-            session.getBasicRemote().sendText("FILE_RECEIVED: " + fileName);
+            // 将消息存储到数据库
+            chatRepository.storeChatMessage(currentUserId, targetUserId, "FILE: " + fileName);
         } else {
             // 格式化文本消息内容
-            String formattedMessage = currentUsername + ": " + msg;
+            String formattedMessage = currentUsername + ":"  + msg;
 
-            // 将消息存储到 Redis
-            jedis.rpush("chatRecords", formattedMessage);
+            // 将消息存储到数据库
+            chatRepository.storeChatMessage(currentUserId, targetUserId, msg);
 
             // 发送消息给目标用户
             Session targetSession = userSessions.get(String.valueOf(targetUserId));
@@ -387,6 +382,7 @@ public class ChatEndpoint {
             //session.getBasicRemote().sendText("我发送给" + targetUsername + ": " + msg);
         }
     }
+
 
 
 

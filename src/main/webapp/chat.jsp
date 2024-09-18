@@ -32,7 +32,7 @@
 
             <!-- 发送按钮 -->
             <button onclick="sendMessage()">发送</button>
-            <input type="file" id="fileInput">
+            <%--<input type="file" id="fileInput">--%>
         </div>
         <!-- 其他视图可以以类似方式添加 -->
     </div>

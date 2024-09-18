@@ -9,5 +9,14 @@
         <res-type>javax.sql.DataSource</res-type>
         <res-auth>Container</res-auth>
     </resource-ref>
+    <servlet>
+        <servlet-name>appInitializerServlet</servlet-name>
+        <servlet-class>org.example.zxlt_system.controller.AppInitializerServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>appInitializerServlet</servlet-name>
+        <url-pattern>/app-initializer</url-pattern>
+    </servlet-mapping>
 
 </web-app>
