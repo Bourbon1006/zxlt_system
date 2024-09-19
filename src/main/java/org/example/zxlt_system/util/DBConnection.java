@@ -11,7 +11,7 @@ public class DBConnection {
         String driver = "com.mysql.cj.jdbc.Driver";  // 使用 MySQL 8.x 驱动类名
         String url = "jdbc:mysql://localhost:3306/zxlt?useUnicode=true&characterEncoding=utf8";
         String username = "root";
-        String password = "2830446056jy";
+        String password = "数据库密码";
 
         if (connection == null) {
             try {
