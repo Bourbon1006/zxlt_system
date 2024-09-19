@@ -238,9 +238,9 @@ public class UserRepository {
         return false;
     }
 
-    public void update(User user) {
+    public boolean update(User user) {
         String sql = "UPDATE users SET username = ?, email = ?, password = ?, role = ? WHERE id = ?";
-
+        boolean a = false;
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, user.getUsername());
             stmt.setString(2, user.getEmail());
@@ -248,16 +248,17 @@ public class UserRepository {
             stmt.setString(4, user.getRole());
             stmt.setInt(5, user.getId());
 
+
             int rowsUpdated = stmt.executeUpdate();
-            if (rowsUpdated == 0) {
-                System.out.println("No user found with ID: " + user.getId());
-            } else {
-                System.out.println("User updated successfully.");
+            if (rowsUpdated != 0) {
+                //System.out.println("No user found with ID: " + user.getId());
+                a = true;
             }
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println("Error updating user: " + e.getMessage());
         }
+        return a;
     }
 
 

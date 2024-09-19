@@ -90,6 +90,58 @@
 </div>
 
 <script>
+
+    // 显示在线用户的对话框
+    function showOnlineUsersDialog() {
+        document.getElementById("onlineUsersDialog").classList.add("show");
+        // 获取在线用户并显示
+        fetchOnlineUsers();
+    }
+
+    // 关闭对话框
+    function closeDialog(dialogId) {
+        document.getElementById(dialogId).classList.remove("show");
+    }
+
+    // 获取在线用户
+    function fetchOnlineUsers() {
+        socket.send("GET_USERS");
+    }
+
+    // 处理获取到的在线用户
+    // 处理获取到的在线用户
+    function updateOnlineUsers(userList) {
+        let users = userList.split(","); // 分割每个用户信息
+        let userListElement = document.getElementById("onlineUsersList");
+        userListElement.innerHTML = ""; // 清空当前用户列表
+
+        users.forEach(function(userInfo) {
+            // 使用正则表达式捕获用户名和状态
+            let matches = userInfo.match(/(.*) \((.*)\)/);
+
+            if (matches && matches.length === 3) {
+                let username = matches[1]; // 提取用户名
+                let status = matches[2];   // 提取状态（在线或离线）
+
+                // 创建列表项
+                let li = document.createElement("li");
+                li.textContent = username;
+
+                // 根据状态添加相应的 CSS 类
+                if (status === "在线") {
+                    li.classList.add("online-user");
+                } else {
+                    li.classList.add("offline-user");
+                }
+
+                // 将用户添加到列表
+                userListElement.appendChild(li);
+            }
+        });
+    }
+
+
+
     let socket;
     let userId = sessionStorage.getItem('userId'); // 用户 ID，根据实际登录的用户动态设置
     let currentUsername = sessionStorage.getItem('username');
@@ -240,26 +292,34 @@
 
     // 处理接收到的消息
     function handleMessage(message) {
-        if (message.startsWith("ONLINE_USERS:")) {
-            updateOnlineUsers(message.substring(13));
-        } else if (message.startsWith("CHAT_HISTORY:")) {
+        if (message.startsWith("USER_STATUS:")) {
+            updateOnlineUsers(message.substring(12));
+        }
+        else if (message.startsWith("CHAT_HISTORY:")) {
             displayChatHistory(message.substring(13));
-        } else if (message.startsWith("FRIEND_REQUEST:")) {
+        }
+        else if (message.startsWith("FRIEND_REQUEST:")) {
             let requester = message.substring(15);
             showFriendRequestDialog(requester);
-        } else if (message.startsWith("FRIENDS_LIST:")) {
+        }
+        else if (message.startsWith("FRIENDS_LIST:")) {
             let friends = message.substring(13);
             displayFriendsList(friends);
-        } else if (message.startsWith("ADD_FRIEND")) {
+        }
+        else if (message.startsWith("ADD_FRIEND")) {
             alert(message); // 好友请求已发送
-        } else if (message.startsWith("ACCEPT_FRIEND")) {
+        }
+        else if (message.startsWith("ACCEPT_FRIEND")) {
             alert(message); // 好友请求已接受
-        } else if (message.startsWith("REJECT_FRIEND")) {
+        }
+        else if (message.startsWith("REJECT_FRIEND")) {
             alert(message); // 好友请求已拒绝
-        } else {
+        }
+        else {
             displayChatMessage(message);
         }
     }
+
     // 显示修改密码的对话框
     function showChangePasswordDialog() {
         document.getElementById("changePasswordDialog").classList.add("show");
@@ -314,26 +374,37 @@
     }
 
 
-    // 处理服务器返回的好友列表
     socket.onmessage = function(event) {
         let message = event.data;
+
         if (message.startsWith("FRIENDS_LIST:")) {
-            let friends = message.substring(13); // 提取好友列表
-            updateFriendsList(friends); // 更新好友列表显示
-        } else if (message.startsWith("FRIEND_REQUEST:")) {
+            let friends = message.substring(13);
+            updateFriendsList(friends);
+        }
+        else if (message.startsWith("FRIEND_REQUEST:")) {
             let requester = message.substring(15);
             showFriendRequestDialog(requester);
-        } else if (message.startsWith("ADD_FRIEND")) {
-            alert(message);
-        } else if (message.startsWith("ACCEPT_FRIEND")) {
-            alert(message);
-        } else if (message.startsWith("REJECT_FRIEND")) {
-            alert(message);
-        } else {
+        }
+        else if (message.startsWith("ADD_FRIEND:")) {
+            let resultMessage = message.substring(12);
+            alert(resultMessage);
+        }
+        else if (message.startsWith("ACCEPT_FRIEND:")) {
+            let resultMessage = message.substring(15);
+            alert(resultMessage);
+        }
+        else if (message.startsWith("REJECT_FRIEND:")) {
+            let resultMessage = message.substring(15);
+            alert(resultMessage);
+        }
+        else if (message.startsWith("USER_STATUS:")) {
+            let userList = message.substring(12);
+            updateOnlineUsers(userList);
+        }
+        else {
             displayChatMessage(message);
         }
     };
-
 
     // 获取聊天记录
     function fetchChatHistory() {
@@ -345,20 +416,24 @@
         let chatMessages = document.getElementById("chatMessages");
         let p = document.createElement("p");
 
-        // 假设消息格式为 "用户名:消息内容"
+        // 假设消息格式为 "用户名:消息内容:接收者名"
         let messageParts = message.split(":");
         let username = messageParts[0];
-        let messageContent = messageParts.slice(1).join(":");
+        let messageContent = messageParts.slice(1, -1).join(":"); // 消息内容
 
         // 判断消息是否是自己发的（假设 currentUsername 是当前用户的用户名）
         if (username === currentUsername) {
-            p.textContent = "我: " + messageContent;
+            // 自己发的消息，附带接收者信息
+            let receiver = messageParts[messageParts.length - 1]; // 接收者名
+            p.textContent = "我: " + messageContent + " (发给: " + receiver + ")";
         } else {
-            p.textContent = message;
+            // 其他用户发的消息，只显示发送者和消息内容，不带接收者名
+            p.textContent = username + ": " + messageContent;
         }
 
         chatMessages.appendChild(p);
     }
+
 
     // 显示聊天记录
     function displayChatHistory(history) {
@@ -370,6 +445,7 @@
             }
         });
     }
+
 
 
     // 显示添加好友的对话框
@@ -407,38 +483,6 @@
         document.getElementById("requesterName").textContent = requester;
         dialog.classList.add("show");
     }
-
-    // 显示在线用户的对话框
-    function showOnlineUsersDialog() {
-        document.getElementById("onlineUsersDialog").classList.add("show");
-        // 这里可以添加获取在线用户并显示的逻辑
-        fetchOnlineUsers();
-    }
-
-    // 获取在线用户
-    function fetchOnlineUsers() {
-        socket.send("GET_USERS");
-    }
-
-    // 处理获取到的在线用户
-    function updateOnlineUsers(userList) {
-        let users = userList.split(",");
-        let userListElement = document.getElementById("onlineUsersList");
-        userListElement.innerHTML = ""; // 清空当前用户列表
-
-        users.forEach(function(username) {
-            let li = document.createElement("li");
-            li.textContent = username;
-            userListElement.appendChild(li);
-        });
-    }
-
-    // 关闭对话框
-    function closeDialog(dialogId) {
-        document.getElementById(dialogId).classList.remove("show");
-    }
-
-
 
     // 处理服务器返回的好友请求更新
     socket.onmessage = function(event) {

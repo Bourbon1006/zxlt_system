@@ -68,4 +68,24 @@ public class UserServiceImpl implements UserService {
     public boolean isEmailExists(String email) throws SQLException {
         return userRepository.isEmailExists(email);
     }
+
+
+    @Override
+    public User findUserById(int userId) throws SQLException {
+        return userRepository.findById(userId);
+    }
+
+    @Override
+    public boolean updateUser(int userId, String newUsername, String newEmail, String newPassword) throws SQLException {
+        User user = userRepository.findById(userId);
+        if (user != null) {
+            user.setUsername(newUsername);
+            user.setEmail(newEmail);
+            if (newPassword != null && !newPassword.isEmpty()) {
+                user.setPassword(newPassword);
+            }
+            return userRepository.update(user);
+        }
+        return false;
+    }
 }

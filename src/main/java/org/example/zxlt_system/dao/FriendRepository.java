@@ -3,6 +3,8 @@ package org.example.zxlt_system.dao;
 import org.example.zxlt_system.util.DBConnection;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class FriendRepository {
 
@@ -113,10 +115,10 @@ public class FriendRepository {
             connection.setAutoCommit(true); // 恢复自动提交
         }
     }
-    public static String getFriendsList(int userIdInt) throws SQLException {
+    public static List<String> getFriendsList(int userIdInt) throws SQLException {
         String friendsQuery = "SELECT friend_id FROM friends WHERE user_id = ?";
         String usersQuery = "SELECT username FROM users WHERE id = ?";
-        StringBuilder friendsList = new StringBuilder();
+        List<String> friendsList = new ArrayList<>();
 
         try (PreparedStatement friendsStmt = connection.prepareStatement(friendsQuery)) {
             friendsStmt.setInt(1, userIdInt);
@@ -129,10 +131,7 @@ public class FriendRepository {
                         usersStmt.setInt(1, friendId);
                         try (ResultSet usersRs = usersStmt.executeQuery()) {
                             if (usersRs.next()) {
-                                if (friendsList.length() > 0) {
-                                    friendsList.append(",");
-                                }
-                                friendsList.append(usersRs.getString("username"));
+                                friendsList.add(usersRs.getString("username"));
                             }
                         }
                     }
@@ -140,8 +139,9 @@ public class FriendRepository {
             }
         }
 
-        return friendsList.toString();
+        return friendsList;
     }
+
 
     public boolean areFriends(int userId1, int userId2) {
         String query = "SELECT * FROM friends WHERE ((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)) AND status = 'accepted'";

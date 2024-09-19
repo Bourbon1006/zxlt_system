@@ -123,10 +123,38 @@
 }
 
 #onlineUsersList li {
-    padding: 5px 0;
+    padding: 10px 0;
     border-bottom: 1px solid #eee;
+    display: flex; /* 使用 flexbox 布局 */
+    align-items: center;
 }
 
 #onlineUsersList li:last-child {
     border-bottom: none;
+}
+
+/* 在线用户样式 */
+.online-user::before {
+    content: '🟢'; /* 在线用户使用绿色圆点图标 */
+    margin-right: 8px;
+    color: green;
+}
+
+/* 离线用户样式 */
+.offline-user::before {
+    content: '⚪'; /* 离线用户使用灰色圆点图标 */
+    margin-right: 8px;
+    color: gray;
+}
+
+/* 在线用户 */
+.online-user {
+    color: green;
+    font-weight: bold;
+}
+
+/* 离线用户 */
+.offline-user {
+    color: gray;
+    font-style: italic;
 }

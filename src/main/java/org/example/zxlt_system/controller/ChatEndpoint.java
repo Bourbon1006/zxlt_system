@@ -28,6 +28,7 @@ public class ChatEndpoint {
     private final FriendRepository friendRepository = new FriendRepository();
     private final UserRepository userRepository = new UserRepository();
     private final ChatRepository chatRepository = new ChatRepository();
+
     @OnOpen
     public void onOpen(Session session, @PathParam("userId") String userId) throws IOException {
         userSessions.put(userId, session);  // 先将用户加入会话列表
@@ -50,7 +51,7 @@ public class ChatEndpoint {
             jedis.publish("userChannel", "User " + username + " joined the chat");
 
             // 广播在线用户列表
-            broadcastOnlineUsers();
+            //broadcastUsers();
         }
     }
 
@@ -95,7 +96,7 @@ public class ChatEndpoint {
 
                 case "GET_USERS":
                     if ("GET_USERS".equals(message)) {
-                        broadcastOnlineUsers();
+                        broadcastUsers();
                     }
                     break;
 
@@ -104,20 +105,11 @@ public class ChatEndpoint {
                         User currentUser = userRepository.findById(Integer.parseInt(userId));
                         String role = currentUser != null ? currentUser.getRole() : "user"; // 默认为普通用户
 
-                        List<String> chatRecords = chatRepository.getChatRecords(Integer.parseInt(userId));
+                        List<String> chatRecords = chatRepository.getChatRecords(Integer.parseInt(userId), role);
                         StringBuilder history = new StringBuilder("CHAT_HISTORY:");
 
-                        if ("admin".equals(role)) {
-                            // 如果是管理员，显示所有聊天记录
-                            for (String record : chatRecords) {
-                                history.append(record).append("\n");
-                            }
-                        } else {
-                            // 普通用户，筛选与好友的聊天记录
-                            for (String record : chatRecords) {
-
-                                history.append(record).append("\n");
-                            }
+                        for (String record : chatRecords) {
+                            history.append(record).append("\n");
                         }
 
                         session.getBasicRemote().sendText(history.toString());
@@ -130,7 +122,7 @@ public class ChatEndpoint {
 
                 case "GET_FRIENDS":
                     if (message.startsWith("GET_FRIENDS")) {
-                        List<String> friendsList = Collections.singletonList(FriendRepository.getFriendsList(Integer.parseInt(userId)));
+                        List<String> friendsList = Collections.singletonList(String.valueOf(FriendRepository.getFriendsList(Integer.parseInt(userId))));
                         String friendsString = String.join(",", friendsList);
                         session.getBasicRemote().sendText("FRIENDS_LIST:" + friendsString);
                     }
@@ -145,7 +137,7 @@ public class ChatEndpoint {
                     jedis.publish("systemChannel", systemMessage);
                     break;
                 case "UPDATE_USER":
-                    handleUpdateUser(userId,message, session);
+                    handleUpdateUser(userId, message, session);
                     break;
 
                 default:
@@ -214,25 +206,24 @@ public class ChatEndpoint {
 
 
     public void handleRemUser(String message, String userId, Session session) {
-        String[] parts = message.split(":",2);
-        if(parts.length != 2)
-        {
+        String[] parts = message.split(":", 2);
+        if (parts.length != 2) {
             sendErrorMessage(session, "Invalid format for remove user request.");
             return;
         }
         String username = parts[1];
-        try{
-            if(userRepository.deleteUser(username))
-            {
+        try {
+            if (userRepository.deleteUser(username)) {
                 session.getBasicRemote().sendText("USER_REMOVE: User " + username + " removed successfully.");
 
             }
-            } catch (SQLException e) {
+        } catch (SQLException e) {
             throw new RuntimeException(e);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
+
     private void handleAddUser(String message, String userId, Session session) {
         // 处理 ADD_USER:username:password:email 格式的消息
         String[] parts = message.split(":", 4);
@@ -339,7 +330,6 @@ public class ChatEndpoint {
         }
 
 
-
         // 处理文件消息
         if ("FILE".equals(messageType)) {
             // 假设 msg 包含文件的二进制数据，实际情况可能需要处理为 Base64 编码的字符串
@@ -365,7 +355,7 @@ public class ChatEndpoint {
             chatRepository.storeChatMessage(currentUserId, targetUserId, "FILE: " + fileName);
         } else {
             // 格式化文本消息内容
-            String formattedMessage = currentUsername + ":"  + msg;
+            String formattedMessage = currentUsername + ":" + msg;
 
             // 将消息存储到数据库
             chatRepository.storeChatMessage(currentUserId, targetUserId, msg);
@@ -382,8 +372,6 @@ public class ChatEndpoint {
             //session.getBasicRemote().sendText("我发送给" + targetUsername + ": " + msg);
         }
     }
-
-
 
 
     private void handleFriendMessage(String message, String userId, Session session) {
@@ -434,7 +422,7 @@ public class ChatEndpoint {
                     responseMessage = success ? "Friend request rejected." : "ERROR: Operation failed.";
                     break;
                 case "GET_FRIENDS":
-                    String friends = FriendRepository.getFriendsList(userIdInt); // 获取好友列表
+                    String friends = String.valueOf(FriendRepository.getFriendsList(userIdInt)); // 获取好友列表
                     session.getBasicRemote().sendText("FRIENDS_LIST:" + friends);
                     return; // 已经处理完响应，不需要再发送默认消息
             }
@@ -480,9 +468,9 @@ public class ChatEndpoint {
         try (Jedis jedis = jedisPool.getResource()) {
             userSessions.remove(userId);
             jedis.srem("onlineUsers", userId); // 确保用户 ID 从 onlineUsers 集合中删除
-            jedis.hdel("userIdToUsername", userId);
+            //jedis.hdel("userIdToUsername", userId);
             jedis.publish("userChannel", "User " + userId + " left the chat");
-            broadcastOnlineUsers();
+            broadcastUsers();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -501,26 +489,40 @@ public class ChatEndpoint {
         }
     }
 
-    private void broadcastOnlineUsers() throws IOException {
+    private void broadcastUsers() throws IOException {
         try (Jedis jedis = jedisPool.getResource()) {
             StringBuilder usersList = new StringBuilder();
 
-            for (String userId : jedis.smembers("onlineUsers")) {
-                String username = jedis.hget("userIdToUsername", userId);
-                if (username != null) {
-                    usersList.append(username).append(",");
+            // 获取所有用户
+            Map<String, String> allUsers = jedis.hgetAll("userIdToUsername");
+
+            // 获取在线用户
+            Set<String> onlineUsers = jedis.smembers("onlineUsers");
+
+            for (Map.Entry<String, String> entry : allUsers.entrySet()) {
+                String userId = entry.getKey();
+                String username = entry.getValue();
+
+                // 判断该用户是否在线
+                if (onlineUsers.contains(userId)) {
+                    usersList.append(username).append(" (在线),");
+                } else {
+                    usersList.append(username).append(" (离线),");
                 }
             }
 
+            // 删除最后一个多余的逗号
             if (usersList.length() > 0) {
                 usersList.setLength(usersList.length() - 1);
             }
 
+            // 广播用户状态
             for (Session session : userSessions.values()) {
                 if (session.isOpen()) {
-                    session.getBasicRemote().sendText("ONLINE_USERS:" + usersList.toString());
+                    session.getBasicRemote().sendText("USER_STATUS:" + usersList.toString());
                 }
             }
         }
     }
 }
+

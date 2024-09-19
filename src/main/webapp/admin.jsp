@@ -184,7 +184,7 @@
                 addUsers(content);
                 break;
 
-            case "ONLINE_USERS":
+            case "USER_STATUS":
                 updateOnlineUsers(content);
                 break;
 
@@ -219,22 +219,28 @@
         let chatMessages = document.getElementById("chatMessages");
         let p = document.createElement("p");
 
-        // 假设消息格式为 "用户名:消息内容"
-        let [username, ...messageParts] = message.split(":");
-        let messageContent = messageParts.join(":");
+        // 假设消息格式为 "用户名:消息内容:接收者名"
+        let messageParts = message.split(":");
+        let username = messageParts[0];
+        let messageContent = messageParts.slice(1, -1).join(":"); // 消息内容
 
-        p.textContent = username === currentUsername ? "我: " + messageContent : message;
+        // 判断消息是否是自己发的（假设 currentUsername 是当前用户的用户名）
+        if (username === currentUsername) {
+            // 自己发的消息，附带接收者信息
+            let receiver = messageParts[messageParts.length - 1]; // 接收者名
+            p.textContent = "我: " + messageContent + " (发给: " + receiver + ")";
+        } else {
+            // 其他用户发的消息，只显示发送者和消息内容，不带接收者名
+            p.textContent = username + ": " + messageContent;
+        }
+
         chatMessages.appendChild(p);
-
-        // 自动滚动到最新消息
-        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
     // 显示聊天记录
     function displayChatHistory(history) {
         let chatMessages = document.getElementById("chatMessages");
         chatMessages.innerHTML = ""; // 清空聊天记录
-
         history.split("\n").forEach(function(record) {
             if (record.trim() !== "") {
                 displayChatMessage(record);
@@ -402,8 +408,13 @@
     // 显示在线用户的对话框
     function showOnlineUsersDialog() {
         document.getElementById("onlineUsersDialog").classList.add("show");
-        // 这里可以添加获取在线用户并显示的逻辑
+        // 获取在线用户并显示
         fetchOnlineUsers();
+    }
+
+    // 关闭对话框
+    function closeDialog(dialogId) {
+        document.getElementById(dialogId).classList.remove("show");
     }
 
     // 获取在线用户
@@ -412,15 +423,34 @@
     }
 
     // 处理获取到的在线用户
+    // 处理获取到的在线用户
     function updateOnlineUsers(userList) {
-        let users = userList.split(",");
+        let users = userList.split(","); // 分割每个用户信息
         let userListElement = document.getElementById("onlineUsersList");
         userListElement.innerHTML = ""; // 清空当前用户列表
 
-        users.forEach(function(username) {
-            let li = document.createElement("li");
-            li.textContent = username;
-            userListElement.appendChild(li);
+        users.forEach(function(userInfo) {
+            // 使用正则表达式捕获用户名和状态
+            let matches = userInfo.match(/(.*) \((.*)\)/);
+
+            if (matches && matches.length === 3) {
+                let username = matches[1]; // 提取用户名
+                let status = matches[2];   // 提取状态（在线或离线）
+
+                // 创建列表项
+                let li = document.createElement("li");
+                li.textContent = username;
+
+                // 根据状态添加相应的 CSS 类
+                if (status === "在线") {
+                    li.classList.add("online-user");
+                } else {
+                    li.classList.add("offline-user");
+                }
+
+                // 将用户添加到列表
+                userListElement.appendChild(li);
+            }
         });
     }
 

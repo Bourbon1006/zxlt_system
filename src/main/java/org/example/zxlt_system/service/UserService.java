@@ -15,5 +15,9 @@ public interface UserService {
     List<User> getAllUsers() throws SQLException;
     boolean isUsernameExists(String username) throws SQLException;
     boolean isEmailExists(String email) throws SQLException;
+
+    User findUserById(int userId) throws SQLException;
+
+    boolean updateUser(int userId, String newUsername, String newEmail, String newPassword) throws SQLException;
 }
 
